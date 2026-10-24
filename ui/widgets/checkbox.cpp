@@ -139,7 +139,23 @@ void ToggleView::paint(QPainter &p, int left, int top, int outerWidth) {
 	p.setBrush(anim::brush(_st->untoggledBg, _st->toggledBg, toggled));
 	p.drawEllipse(fgRectF);
 
-	if (_locked || _st->xsize > 0) {
+	if (material && (_locked || _st->xsize > 0)) {
+		const auto full = float64(_st->diameter);
+		const auto scale = fgRectF.width() / full;
+		p.save();
+		p.setPen(Qt::NoPen);
+		p.setBrush(fgBrush);
+		p.translate(fgRectF.center());
+		p.scale(scale, scale);
+		p.translate(-full / 2., -full / 2.);
+		if (_locked) {
+			const auto color = anim::color(_st->untoggledFg, _st->toggledFg, toggled);
+			_st->lockIcon.paint(p, 0, 0, _st->diameter, color);
+		} else {
+			paintXV(p, 0, 0, _st->diameter, toggled, fgBrush);
+		}
+		p.restore();
+	} else if (_locked || _st->xsize > 0) {
 		p.setPen(Qt::NoPen);
 		p.setBrush(fgBrush);
 		if (_locked) {
