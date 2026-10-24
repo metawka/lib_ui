@@ -17,6 +17,19 @@
 #include <QtCore/QtMath>
 
 namespace Ui {
+namespace {
+
+bool MaterialSwitchesEnabled = false;
+
+} // namespace
+
+void SetMaterialSwitches(bool enabled) {
+	MaterialSwitchesEnabled = enabled;
+}
+
+bool MaterialSwitches() {
+	return MaterialSwitchesEnabled;
+}
 
 AbstractCheckView::AbstractCheckView(int duration, bool checked, Fn<void()> updateCallback)
 : _duration(duration)
@@ -37,7 +50,8 @@ void AbstractCheckView::setChecked(bool checked, anim::type animated) {
 			[=] { if (_updateCallback) _updateCallback(); },
 			_checked ? 0. : 1.,
 			_checked ? 1. : 0.,
-			_duration);
+			_duration,
+			MaterialSwitches() ? anim::easeOutCubic : anim::linear);
 	}
 	checkedChangedHook(animated);
 	if (changed) {
@@ -89,23 +103,41 @@ void ToggleView::paint(QPainter &p, int left, int top, int outerWidth) {
 
 	PainterHighQualityEnabler hq(p);
 	auto toggled = currentAnimationValue();
-	auto fullWidth = _st->diameter + _st->width;
-	auto innerDiameter = _st->diameter - 2 * _st->shift;
+	const auto material = MaterialSwitches();
+	const auto diameter = material
+		? (_st->diameter - style::ConvertScale(2))
+		: _st->diameter;
+	const auto shift = material ? -style::ConvertScale(2) : _st->shift;
+	if (material) {
+		top += (_st->diameter - diameter) / 2;
+	}
+	auto fullWidth = diameter + _st->width;
+	auto innerDiameter = diameter - 2 * shift;
 	auto innerRadius = float64(innerDiameter) / 2.;
-	auto toggleLeft = left + anim::interpolate(0, fullWidth - _st->diameter, toggled);
-	auto bgRect = style::rtlrect(left + _st->shift, top + _st->shift, fullWidth - 2 * _st->shift, innerDiameter, outerWidth);
-	auto fgRect = style::rtlrect(toggleLeft, top, _st->diameter, _st->diameter, outerWidth);
+	auto toggleLeft = left + anim::interpolate(0, fullWidth - diameter, toggled);
+	auto bgRect = style::rtlrect(left + shift, top + shift, fullWidth - 2 * shift, innerDiameter, outerWidth);
+	auto fgRect = style::rtlrect(toggleLeft, top, diameter, diameter, outerWidth);
 	auto fgBrush = anim::brush(_st->untoggledFg, _st->toggledFg, toggled);
 
 	p.setPen(Qt::NoPen);
 	p.setBrush(fgBrush);
 	p.drawRoundedRect(bgRect, innerRadius, innerRadius);
 
+	auto fgRectF = QRectF(fgRect);
+	if (material) {
+		const auto padding = (1. - toggled)
+			* style::ConvertScaleExact(4.);
+		fgRectF = fgRectF.marginsRemoved(QMarginsF(
+			padding / 2.,
+			padding / 2.,
+			padding / 2.,
+			padding / 2.));
+	}
 	auto pen = anim::pen(_st->untoggledFg, _st->toggledFg, toggled);
 	pen.setWidth(_st->border);
 	p.setPen(pen);
 	p.setBrush(anim::brush(_st->untoggledBg, _st->toggledBg, toggled));
-	p.drawEllipse(fgRect);
+	p.drawEllipse(fgRectF);
 
 	if (_locked || _st->xsize > 0) {
 		p.setPen(Qt::NoPen);
