@@ -16,6 +16,9 @@ class Painter;
 
 namespace Ui {
 
+void SetMaterialSwitches(bool enabled);
+[[nodiscard]] bool MaterialSwitches();
+
 class AbstractCheckView {
 public:
 	AbstractCheckView(int duration, bool checked, Fn<void()> updateCallback);
