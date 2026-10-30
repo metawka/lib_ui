@@ -221,6 +221,9 @@ void Menu::removeAction(int position) {
 		delete _actions[position];
 	}
 	_actions.erase(begin(_actions) + position);
+	for (auto i = position, to = int(_actionWidgets.size()); i != to; ++i) {
+		_actionWidgets[i]->setIndex(i);
+	}
 	resizeFromInner(width(), recountHeight());
 }
 
