@@ -331,11 +331,15 @@ void BoxLayerWidget::setCustomCornersFilling(RectParts corners) {
 }
 
 void BoxLayerWidget::clearButtons() {
+	clearBottomButtons();
+	base::take(_topButtons);
+}
+
+void BoxLayerWidget::clearBottomButtons() {
 	for (auto &button : base::take(_buttons)) {
 		button.destroy();
 	}
 	_leftButton.destroy();
-	base::take(_topButtons);
 }
 
 void BoxLayerWidget::addButton(object_ptr<AbstractButton> button) {

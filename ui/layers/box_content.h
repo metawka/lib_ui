@@ -77,6 +77,7 @@ public:
 
 	virtual void setCustomCornersFilling(RectParts corners) = 0;
 	virtual void clearButtons() = 0;
+	virtual void clearBottomButtons() = 0;
 	virtual void addButton(object_ptr<AbstractButton> button) = 0;
 	virtual void addLeftButton(object_ptr<AbstractButton> button) = 0;
 	virtual void addTopButton(object_ptr<AbstractButton> button) = 0;
@@ -162,6 +163,9 @@ public:
 	}
 	void clearButtons() {
 		getDelegate()->clearButtons();
+	}
+	void clearBottomButtons() {
+		getDelegate()->clearBottomButtons();
 	}
 	QPointer<AbstractButton> addButton(object_ptr<AbstractButton> button);
 	QPointer<RoundButton> addButton(
