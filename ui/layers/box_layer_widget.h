@@ -59,6 +59,7 @@ public:
 
 	void setCustomCornersFilling(RectParts corners) override;
 	void clearButtons() override;
+	void clearBottomButtons() override;
 	void addButton(object_ptr<AbstractButton> button) override;
 	void addLeftButton(object_ptr<AbstractButton> button) override;
 	void addTopButton(object_ptr<AbstractButton> button) override;
