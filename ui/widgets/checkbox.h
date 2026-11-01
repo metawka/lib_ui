@@ -18,6 +18,8 @@ namespace Ui {
 
 void SetMaterialSwitches(bool enabled);
 [[nodiscard]] bool MaterialSwitches();
+void SetMutedSwitches(bool enabled);
+[[nodiscard]] bool MutedSwitches();
 
 class AbstractCheckView {
 public:

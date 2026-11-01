@@ -31,6 +31,16 @@ bool MaterialSwitches() {
 	return MaterialSwitchesEnabled;
 }
 
+bool MutedSwitchesEnabled = false;
+
+void SetMutedSwitches(bool enabled) {
+	MutedSwitchesEnabled = enabled;
+}
+
+bool MutedSwitches() {
+	return MutedSwitchesEnabled;
+}
+
 AbstractCheckView::AbstractCheckView(int duration, bool checked, Fn<void()> updateCallback)
 : _duration(duration)
 , _checked(checked)
@@ -119,9 +129,26 @@ void ToggleView::paint(QPainter &p, int left, int top, int outerWidth) {
 	auto fgRect = style::rtlrect(toggleLeft, top, diameter, diameter, outerWidth);
 	auto fgBrush = anim::brush(_st->untoggledFg, _st->toggledFg, toggled);
 
-	p.setPen(Qt::NoPen);
-	p.setBrush(fgBrush);
-	p.drawRoundedRect(bgRect, innerRadius, innerRadius);
+	if (material && MutedSwitches()) {
+		auto fill = anim::color(_st->untoggledFg, _st->toggledFg, toggled);
+		auto outline = fill;
+		fill.setAlphaF(fill.alphaF() * toggled);
+		outline.setAlphaF(outline.alphaF() * (0.45 + 0.55 * toggled));
+		const auto width = style::ConvertScaleExact(1.5);
+		auto pen = QPen(outline);
+		pen.setWidthF(width);
+		p.setPen(pen);
+		p.setBrush(fill);
+		const auto half = width / 2.;
+		p.drawRoundedRect(
+			QRectF(bgRect).marginsRemoved({ half, half, half, half }),
+			innerRadius - half,
+			innerRadius - half);
+	} else {
+		p.setPen(Qt::NoPen);
+		p.setBrush(fgBrush);
+		p.drawRoundedRect(bgRect, innerRadius, innerRadius);
+	}
 
 	auto fgRectF = QRectF(fgRect);
 	if (material) {
