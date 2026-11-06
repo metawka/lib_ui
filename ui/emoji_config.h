@@ -156,6 +156,8 @@ QVector<EmojiPtr> GetDefaultRecent();
 
 const QPixmap &SinglePixmap(EmojiPtr emoji, int fontHeight);
 void Draw(QPainter &p, EmojiPtr emoji, int size, int x, int y);
+void SetSystemEmoji(bool enabled);
+[[nodiscard]] bool SystemEmojiEnabled();
 
 class UniversalImages {
 public:

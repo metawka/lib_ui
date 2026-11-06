@@ -93,6 +93,47 @@ auto TouchbarEmoji = (Instance*)nullptr;
 
 auto MainEmojiMap = std::map<int, QPixmap>();
 auto OtherEmojiMap = base::flat_map<int, std::map<int, QPixmap>>();
+auto SystemEmoji = false;
+auto SystemEmojiMap = base::flat_map<int, std::map<int, QPixmap>>();
+
+[[nodiscard]] QString SystemEmojiFamily() {
+#if defined Q_OS_WIN
+	return u"Segoe UI Emoji"_q;
+#elif defined Q_OS_MAC
+	return u"Apple Color Emoji"_q;
+#else
+	return u"Noto Color Emoji"_q;
+#endif
+}
+
+const QPixmap &SystemPixmap(EmojiPtr emoji, int size) {
+	auto &map = SystemEmojiMap[size];
+	const auto i = map.find(emoji->index());
+	if (i != end(map)) {
+		return i->second;
+	}
+	auto image = QImage(size, size, QImage::Format_ARGB32_Premultiplied);
+	image.fill(Qt::transparent);
+	{
+		QPainter p(&image);
+		p.setRenderHint(QPainter::TextAntialiasing);
+		p.setRenderHint(QPainter::Antialiasing);
+		auto font = QFont(SystemEmojiFamily());
+		font.setPixelSize(std::max(int(size * 0.82), 1));
+		font.setStyleStrategy(QFont::PreferAntialias);
+		p.setFont(font);
+		p.setPen(Qt::black);
+		p.drawText(
+			QRect(0, 0, size, size),
+			Qt::AlignCenter,
+			emoji->text());
+	}
+	image.setDevicePixelRatio(style::DevicePixelRatio());
+	return map.emplace(
+		emoji->index(),
+		QPixmap::fromImage(std::move(image))
+	).first->second;
+}
 
 int RowsCount(int index) {
 	if (index + 1 < SpritesCount) {
@@ -497,6 +538,21 @@ QImage UniversalImages::generate(int size, int index) const {
 	return result;
 }
 
+void SetSystemEmoji(bool enabled) {
+	if (SystemEmoji == enabled) {
+		return;
+	}
+	SystemEmoji = enabled;
+	MainEmojiMap.clear();
+	OtherEmojiMap.clear();
+	SystemEmojiMap.clear();
+	Updates.fire({});
+}
+
+bool SystemEmojiEnabled() {
+	return SystemEmoji;
+}
+
 void Init() {
 	internal::Init();
 
@@ -796,6 +852,10 @@ const QPixmap &SinglePixmap(EmojiPtr emoji, int fontHeight) {
 }
 
 void Draw(QPainter &p, EmojiPtr emoji, int size, int x, int y) {
+	if (SystemEmoji) {
+		p.drawPixmap(QPoint(x, y), SystemPixmap(emoji, size));
+		return;
+	}
 #ifdef Q_OS_MAC
 	const auto s = (style::Scale() == kScaleForTouchBar)
 		? SizeLarge
