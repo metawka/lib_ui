@@ -6,7 +6,10 @@
 //
 #include "ui/layers/box_content.h"
 
+#include <QtGui/QPainterPath>
+
 #include "ui/widgets/buttons.h"
+#include "ui/widgets/expressive_close_button.h"
 #include "ui/widgets/scroll_area.h"
 #include "ui/widgets/labels.h"
 #include "ui/widgets/shadow.h"
@@ -147,6 +150,7 @@ QPointer<RoundButton> BoxContent::addButton(
 		std::move(text),
 		st);
 	auto result = QPointer<RoundButton>(button.data());
+	button->setWavy(true);
 	result->setClickedCallback(std::move(clickCallback));
 	getDelegate()->addButton(std::move(button));
 	return result;
@@ -177,6 +181,7 @@ QPointer<RoundButton> BoxContent::addLeftButton(
 		std::move(text),
 		st);
 	const auto result = QPointer<RoundButton>(button.data());
+	button->setWavy(true);
 	result->setClickedCallback(std::move(clickCallback));
 	getDelegate()->addLeftButton(std::move(button));
 	return result;
@@ -192,7 +197,10 @@ QPointer<AbstractButton> BoxContent::addTopButton(
 QPointer<IconButton> BoxContent::addTopButton(
 		const style::IconButton &st,
 		Fn<void()> clickCallback) {
-	auto button = object_ptr<IconButton>(this, st);
+	// the standard dialog close button is the lively Expressive one
+	auto button = (&st == &st::boxTitleClose)
+		? object_ptr<IconButton>(object_ptr<ExpressiveCloseButton>(this, st))
+		: object_ptr<IconButton>(this, st);
 	const auto result = QPointer<IconButton>(button.data());
 	result->setClickedCallback(std::move(clickCallback));
 	getDelegate()->addTopButton(std::move(button));
@@ -452,6 +460,17 @@ void BoxContent::paintEvent(QPaintEvent *e) {
 
 	if (testAttribute(Qt::WA_OpaquePaintEvent)) {
 		const auto &color = getDelegate()->style().bg;
+		// Boxes without a title start the content right under the top edge:
+		// keep the box's rounded top corners instead of filling over them.
+		const auto radius = st::boxRadius;
+		if (y() < radius) {
+			auto path = QPainterPath();
+			path.addRoundedRect(
+				QRectF(0, -y(), width(), height() + y() + radius),
+				radius,
+				radius);
+			p.setClipPath(path);
+		}
 		for (const auto &rect : e->region()) {
 			p.fillRect(rect, color);
 		}

@@ -35,7 +35,7 @@ Box {
 }
 
 boxDuration: 200;
-boxRadius: 8px;
+boxRadius: 28px;
 
 boxButtonFont: font(boxFontSize semibold);
 defaultBoxButtonTextStyle: TextStyle(semiboldTextStyle) {
@@ -70,16 +70,16 @@ defaultBoxCheckbox: Checkbox(defaultCheckbox) {
 
 boxRoundShadow: roundShadowRadius8px;
 
-boxTitleFont: font(16px semibold);
+boxTitleFont: font(21px semibold);
 boxTitle: FlatLabel(defaultFlatLabel) {
 	textFg: boxTitleFg;
-	maxHeight: 24px;
+	maxHeight: 30px;
 	style: TextStyle(defaultTextStyle) {
 		font: boxTitleFont;
 	}
 }
-boxTitlePosition: point(24px, 13px);
-boxTitleHeight: 48px;
+boxTitlePosition: point(24px, 17px);
+boxTitleHeight: 64px;
 boxTitleAdditionalSkip: 9px;
 boxTitleAdditionalFont: normalFont;
 boxScroll: defaultSolidScroll;
@@ -97,7 +97,7 @@ boxTitleClose: IconButton(defaultIconButton) {
 	icon: boxTitleCloseIcon;
 	iconOver: boxTitleCloseIconOver;
 
-	rippleAreaPosition: point(4px, 4px);
+	rippleAreaPosition: point(12px, 12px);
 	rippleAreaSize: 40px;
 	ripple: defaultRippleAnimationBgOver;
 }
