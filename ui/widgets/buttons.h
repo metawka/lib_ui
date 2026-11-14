@@ -307,6 +307,9 @@ QPainterPath PaintGroupedRow(
 	bool over);
 
 void SetupGroupedRowBackground(not_null<RpWidget*> row);
+void SetupGroupedRowBackground(
+	not_null<RpWidget*> row,
+	style::margins extend);
 
 class SettingsButton : public Ui::RippleButton {
 public:

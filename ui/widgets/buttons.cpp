@@ -1179,6 +1179,44 @@ void SetupGroupedRowBackground(not_null<RpWidget*> row) {
 	});
 }
 
+void SetupGroupedRowBackground(
+		not_null<RpWidget*> row,
+		style::margins extend) {
+	if (!style::Md3Grouped()) {
+		return;
+	}
+	const auto parent = row->parentWidget();
+	const auto rpParent = dynamic_cast<RpWidget*>(parent);
+	if (!rpParent) {
+		return;
+	}
+	const auto back = CreateChild<RpWidget>(parent);
+	back->setProperty("md3GroupedRow", true);
+	back->setAttribute(Qt::WA_TransparentForMouseEvents);
+	back->stackUnder(row);
+	rpl::combine(
+		row->geometryValue(),
+		rpParent->widthValue()
+	) | rpl::on_next([=](QRect geometry, int width) {
+		back->setGeometry(
+			0,
+			geometry.y() - extend.top(),
+			width,
+			geometry.height() + extend.top() + extend.bottom());
+		back->update();
+	}, back->lifetime());
+	row->shownValue() | rpl::on_next([=](bool shown) {
+		back->setVisible(shown);
+	}, back->lifetime());
+	back->paintRequest() | rpl::on_next([=] {
+		auto p = QPainter(back);
+		PaintGroupedRow(p, back, st::windowBg->c, false);
+	}, back->lifetime());
+	QObject::connect(row.get(), &QObject::destroyed, back, [=] {
+		delete back;
+	});
+}
+
 void SettingsButton::paintEvent(QPaintEvent *e) {
 	Painter p(this);
 
