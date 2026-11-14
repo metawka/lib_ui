@@ -91,15 +91,17 @@ protected:
 	return false;
 }
 
-[[nodiscard]] bool GroupedNeighbour(QWidget *self, bool above) {
+[[nodiscard]] int GroupedNeighbourOverlap(QWidget *self, bool above) {
 	auto current = self;
 	for (auto level = 0; level != 6; ++level) {
 		const auto parent = current->parentWidget();
 		if (!parent || current->isWindow()) {
-			return false;
+			return -1;
 		}
 		const auto geometry = current->geometry();
+		const auto limit = geometry.height() / 3;
 		auto found = (QWidget*)nullptr;
+		auto overlap = 0;
 		for (const auto child : parent->children()) {
 			const auto widget = qobject_cast<QWidget*>(child);
 			if (!widget
@@ -113,26 +115,38 @@ protected:
 				|| other.left() > geometry.right()) {
 				continue;
 			}
-			const auto adjacent = above
-				? (other.bottom() + 1 == geometry.top())
-				: (other.top() == geometry.bottom() + 1);
-			if (adjacent) {
+			const auto shift = above
+				? (other.bottom() + 1 - geometry.top())
+				: (geometry.bottom() + 1 - other.top());
+			const auto outside = above
+				? (other.top() < geometry.top())
+				: (other.bottom() > geometry.bottom());
+			if (outside
+				&& shift >= 0
+				&& shift <= std::min(limit, other.height() / 3)) {
 				found = widget;
+				overlap = shift;
 				break;
 			}
 		}
 		if (found) {
-			return ContainsGroupedEdge(found, !above, 4);
+			return ContainsGroupedEdge(found, !above, 4)
+				? (level ? 0 : overlap)
+				: -1;
 		}
 		const auto atEdge = above
 			? (geometry.top() <= 0)
 			: (geometry.bottom() >= parent->height() - 1);
 		if (!atEdge) {
-			return false;
+			return -1;
 		}
 		current = parent;
 	}
-	return false;
+	return -1;
+}
+
+[[nodiscard]] bool GroupedNeighbour(QWidget *self, bool above) {
+	return GroupedNeighbourOverlap(self, above) >= 0;
 }
 
 [[nodiscard]] QPainterPath GroupedPath(
@@ -1114,15 +1128,17 @@ QPainterPath PaintGroupedRow(
 	const auto extra = rp ? rp->getMargins() : QMargins();
 	const auto width = self->width() - extra.left() - extra.right();
 	const auto height = self->height();
-	const auto prev = GroupedNeighbour(self, true);
+	const auto above = GroupedNeighbourOverlap(self, true);
+	const auto prev = (above >= 0);
 	const auto next = GroupedNeighbour(self, false);
+	const auto cut = std::max(above, 0);
 	const auto big = style::ConvertScale(18.);
 	const auto small = style::ConvertScale(4.);
 	const auto card = QRectF(
 		extra.left() + inset,
-		prev ? gap : 0,
+		prev ? (cut + gap) : 0,
 		width - 2 * inset,
-		height - (prev ? gap : 0) - (next ? gap : 0));
+		height - (prev ? (cut + gap) : 0) - (next ? gap : 0));
 	const auto path = GroupedPath(
 		card,
 		prev ? small : big,
