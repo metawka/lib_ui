@@ -4,6 +4,10 @@
     <file>OpenSans-Italic.ttf</file>
     <file>OpenSans-SemiBold.ttf</file>
     <file>OpenSans-SemiBoldItalic.ttf</file>
+    <file>GoogleSans-Regular.ttf</file>
+    <file>GoogleSans-Italic.ttf</file>
+    <file>GoogleSans-SemiBold.ttf</file>
+    <file>GoogleSans-SemiBoldItalic.ttf</file>
     <file>Vazirmatn-UI-NL-Regular.ttf</file>
     <file>Vazirmatn-UI-NL-SemiBold.ttf</file>
   </qresource>

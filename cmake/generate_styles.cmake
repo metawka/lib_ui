@@ -15,6 +15,8 @@ function(generate_styles target_name src_loc style_files dependent_style_files)
         )
     endforeach()
     list(APPEND full_dependencies_list ${full_generation_sources})
+    file(GLOB md3_overlays ${submodules_loc}/Resources/md3/*.md3)
+    list(APPEND full_dependencies_list ${md3_overlays})
 
     add_custom_command(
     OUTPUT

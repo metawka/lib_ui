@@ -1720,3 +1720,9 @@ dropdownMenuWithIcons: DropdownMenu(defaultDropdownMenu) {
 universalRippleAnimation: RippleAnimation(defaultRippleAnimation) {
 	color: shadowFg;
 }
+
+menuItemBgRadius: 0px;
+menuItemBgMargins: margins(0px, 0px, 0px, 0px);
+sideBarActivePill: size(0px, 0px);
+sideBarActivePillBg: sideBarBgActive;
+searchFieldRowRadius: 0px;

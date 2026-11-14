@@ -8,6 +8,7 @@
 
 #include "ui/effects/ripple_animation.h"
 #include "ui/painter.h"
+#include "styles/style_widgets.h"
 
 #include <QtGui/QtEvents>
 
@@ -96,6 +97,20 @@ void Action::paintEvent(QPaintEvent *e) {
 }
 
 void Action::paintBackground(QPainter &p, bool selected) {
+	if (const auto radius = st::menuItemBgRadius; radius > 0) {
+		p.fillRect(0, 0, width(), _height, _st.itemBg);
+		if (selected) {
+			auto hq = PainterHighQualityEnabler(p);
+			p.setPen(Qt::NoPen);
+			p.setBrush(_st.itemBgOver);
+			p.drawRoundedRect(
+				QRect(0, 0, width(), _height).marginsRemoved(
+					st::menuItemBgMargins),
+				radius,
+				radius);
+		}
+		return;
+	}
 	if (selected && _st.itemBgOver->c.alpha() < 255) {
 		p.fillRect(0, 0, width(), _height, _st.itemBg);
 	}
@@ -212,6 +227,15 @@ QPoint Action::prepareRippleStartPosition() const {
 }
 
 QImage Action::prepareRippleMask() const {
+	if (const auto radius = st::menuItemBgRadius; radius > 0) {
+		return Ui::RippleAnimation::MaskByDrawer(size(), false, [&](
+				QPainter &p) {
+			p.drawRoundedRect(
+				rect().marginsRemoved(st::menuItemBgMargins),
+				radius,
+				radius);
+		});
+	}
 	return Ui::RippleAnimation::RectMask(size());
 }
 

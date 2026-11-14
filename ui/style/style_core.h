@@ -33,7 +33,16 @@ void EnsureContrast(ColorData &over, const ColorData &under);
 void StartShortAnimation();
 void StopShortAnimation();
 
+[[nodiscard]] bool Md3(int mask);
+[[nodiscard]] bool Md3Fill();
+
 } // namespace internal
+
+void SetMd3(bool enabled, int groups, bool fill);
+[[nodiscard]] bool Md3Enabled();
+void SetMd3Grouped(bool grouped);
+[[nodiscard]] bool Md3Grouped();
+[[nodiscard]] bool Md3Group(int group);
 
 void StartManager(int scale);
 void StopManager();

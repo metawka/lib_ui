@@ -233,3 +233,4 @@ webviewDialogSubmit: RoundButton(defaultActiveButton) {
 	style: defaultBoxButtonTextStyle;
 }
 webviewDialogPadding: margins(8px, 12px, 15px, 12px);
+mainMenuRadius: 0px;

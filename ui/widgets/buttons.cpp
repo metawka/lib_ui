@@ -16,8 +16,10 @@
 #include "ui/rect.h"
 #include "ui/qt_object_factory.h"
 #include "ui/round_rect.h"
+#include "styles/palette.h"
 
 #include <QtGui/QtEvents>
+#include <QtGui/QPainterPath>
 
 namespace Ui {
 namespace {
@@ -57,6 +59,118 @@ protected:
 	}
 
 };
+
+[[nodiscard]] bool IsGroupedItem(QWidget *w) {
+	if (const auto button = dynamic_cast<SettingsButton*>(w)) {
+		return (button->st().textBg->c.alpha() == 255);
+	}
+	return w->property("md3GroupedRow").toBool();
+}
+
+[[nodiscard]] bool ContainsGroupedEdge(QWidget *w, bool top, int depth) {
+	if (IsGroupedItem(w)) {
+		return true;
+	} else if (depth <= 0) {
+		return false;
+	}
+	for (const auto child : w->children()) {
+		const auto widget = qobject_cast<QWidget*>(child);
+		if (!widget || !widget->isVisibleTo(w) || widget->height() <= 0) {
+			continue;
+		}
+		const auto geometry = widget->geometry();
+		const auto touches = top
+			? (geometry.top() <= 0)
+			: (geometry.bottom() >= w->height() - 1);
+		if (touches
+			&& geometry.width() * 2 >= w->width()
+			&& ContainsGroupedEdge(widget, top, depth - 1)) {
+			return true;
+		}
+	}
+	return false;
+}
+
+[[nodiscard]] bool GroupedNeighbour(QWidget *self, bool above) {
+	auto current = self;
+	for (auto level = 0; level != 6; ++level) {
+		const auto parent = current->parentWidget();
+		if (!parent || current->isWindow()) {
+			return false;
+		}
+		const auto geometry = current->geometry();
+		auto found = (QWidget*)nullptr;
+		for (const auto child : parent->children()) {
+			const auto widget = qobject_cast<QWidget*>(child);
+			if (!widget
+				|| widget == current
+				|| !widget->isVisibleTo(parent)
+				|| widget->height() <= 0) {
+				continue;
+			}
+			const auto other = widget->geometry();
+			if (other.right() < geometry.left()
+				|| other.left() > geometry.right()) {
+				continue;
+			}
+			const auto adjacent = above
+				? (other.bottom() + 1 == geometry.top())
+				: (other.top() == geometry.bottom() + 1);
+			if (adjacent) {
+				found = widget;
+				break;
+			}
+		}
+		if (found) {
+			return ContainsGroupedEdge(found, !above, 4);
+		}
+		const auto atEdge = above
+			? (geometry.top() <= 0)
+			: (geometry.bottom() >= parent->height() - 1);
+		if (!atEdge) {
+			return false;
+		}
+		current = parent;
+	}
+	return false;
+}
+
+[[nodiscard]] QPainterPath GroupedPath(
+		QRectF r,
+		float64 top,
+		float64 bottom) {
+	auto path = QPainterPath();
+	path.moveTo(r.left() + top, r.top());
+	path.lineTo(r.right() - top, r.top());
+	path.arcTo(r.right() - 2 * top, r.top(), 2 * top, 2 * top, 90, -90);
+	path.lineTo(r.right(), r.bottom() - bottom);
+	path.arcTo(
+		r.right() - 2 * bottom,
+		r.bottom() - 2 * bottom,
+		2 * bottom,
+		2 * bottom,
+		0,
+		-90);
+	path.lineTo(r.left() + bottom, r.bottom());
+	path.arcTo(
+		r.left(),
+		r.bottom() - 2 * bottom,
+		2 * bottom,
+		2 * bottom,
+		270,
+		-90);
+	path.lineTo(r.left(), r.top() + top);
+	path.arcTo(r.left(), r.top(), 2 * top, 2 * top, 180, -90);
+	path.closeSubpath();
+	return path;
+}
+
+[[nodiscard]] QColor GroupedMix(QColor a, QColor b, float64 amount) {
+	return QColor(
+		int(a.red() + (b.red() - a.red()) * amount),
+		int(a.green() + (b.green() - a.green()) * amount),
+		int(a.blue() + (b.blue() - a.blue()) * amount));
+}
 
 } // namespace
 
@@ -989,13 +1103,103 @@ int SettingsButton::fullTextWidth() const {
 	return _text.maxWidth();
 }
 
+QPainterPath PaintGroupedRow(
+		QPainter &p,
+		not_null<QWidget*> self,
+		QColor base,
+		bool over) {
+	const auto inset = style::ConvertScale(10);
+	const auto gap = std::max(style::ConvertScale(1), 1);
+	const auto rp = dynamic_cast<RpWidget*>(self.get());
+	const auto extra = rp ? rp->getMargins() : QMargins();
+	const auto width = self->width() - extra.left() - extra.right();
+	const auto height = self->height();
+	const auto prev = GroupedNeighbour(self, true);
+	const auto next = GroupedNeighbour(self, false);
+	const auto big = style::ConvertScale(18.);
+	const auto small = style::ConvertScale(4.);
+	const auto card = QRectF(
+		extra.left() + inset,
+		prev ? gap : 0,
+		width - 2 * inset,
+		height - (prev ? gap : 0) - (next ? gap : 0));
+	const auto path = GroupedPath(
+		card,
+		prev ? small : big,
+		next ? small : big);
+	auto hq = PainterHighQualityEnabler(p);
+	p.fillPath(
+		path,
+		GroupedMix(base, st::windowFg->c, over ? 0.09 : 0.055));
+	return path;
+}
+
+void SetupGroupedRowBackground(not_null<RpWidget*> row) {
+	if (!style::Md3Grouped()) {
+		return;
+	}
+	row->setProperty("md3GroupedRow", true);
+	const auto parent = row->parentWidget();
+	if (!parent) {
+		return;
+	}
+	const auto back = CreateChild<RpWidget>(parent);
+	back->setProperty("md3GroupedRow", true);
+	back->setAttribute(Qt::WA_TransparentForMouseEvents);
+	back->stackUnder(row);
+	row->geometryValue() | rpl::on_next([=](QRect geometry) {
+		back->setGeometry(geometry);
+		back->update();
+	}, back->lifetime());
+	row->shownValue() | rpl::on_next([=](bool shown) {
+		back->setVisible(shown);
+	}, back->lifetime());
+	back->paintRequest() | rpl::on_next([=] {
+		auto p = QPainter(back);
+		PaintGroupedRow(p, row, st::windowBg->c, false);
+	}, back->lifetime());
+	QObject::connect(row.get(), &QObject::destroyed, back, [=] {
+		delete back;
+	});
+}
+
 void SettingsButton::paintEvent(QPaintEvent *e) {
 	Painter p(this);
 
 	const auto paintOver = (isOver() || isDown()) && !isDisabled();
-	paintBg(p, e->rect(), paintOver);
-
-	paintRipple(p, 0, 0);
+	const auto inset = style::ConvertScale(10);
+	const auto grouped = style::Md3Grouped()
+		&& (_st.textBg->c.alpha() == 255);
+	if (grouped && width() <= inset * 20) {
+		paintRipple(p, 0, 0);
+	} else if (grouped) {
+		const auto path = PaintGroupedRow(p, this, _st.textBg->c, paintOver);
+		p.save();
+		p.setClipPath(path);
+		paintRipple(p, 0, 0);
+		p.restore();
+	} else if (_st.textBg->c.alpha() == 0 && st::menuItemBgRadius > 0) {
+		const auto margins = QMargins(
+			st::menuItemBgMargins.left() + inset / 2,
+			st::menuItemBgMargins.top(),
+			st::menuItemBgMargins.right() + inset / 2,
+			st::menuItemBgMargins.bottom());
+		const auto pill = QRectF(rect().marginsRemoved(margins));
+		const auto radius = pill.height() / 2.;
+		auto path = QPainterPath();
+		path.addRoundedRect(pill, radius, radius);
+		if (paintOver) {
+			auto hq = PainterHighQualityEnabler(p);
+			p.fillPath(path, _st.textBgOver);
+		}
+		p.save();
+		p.setClipPath(path);
+		paintRipple(p, 0, 0);
+		p.restore();
+	} else {
+		paintBg(p, e->rect(), paintOver);
+		paintRipple(p, 0, 0);
+	}
 
 	const auto outerw = width();
 	paintText(p, paintOver, outerw);

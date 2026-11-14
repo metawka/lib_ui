@@ -29,6 +29,9 @@ BoxContentDivider::BoxContentDivider(
 void BoxContentDivider::paintEvent(QPaintEvent *e) {
 	QPainter p(this);
 
+	if (style::Md3Grouped()) {
+		return;
+	}
 	p.fillRect(e->rect(), _st.bg);
 	if (_parts & RectPart::Top) {
 		paintTop(p);

@@ -168,6 +168,20 @@ void SideBarButton::paintEvent(QPaintEvent *e) {
 
 	const auto &bg = _active ? _st.textBgActive : _st.textBg;
 	p.fillRect(clip, bg);
+	if (_active && _showIcon && !st::sideBarActivePill.isEmpty()) {
+		const auto &icon = computeIcon();
+		const auto pill = st::sideBarActivePill;
+		const auto center = QPoint(
+			iconLeft() + icon.width() / 2,
+			iconTop() + icon.height() / 2);
+		auto hq = PainterHighQualityEnabler(p);
+		p.setPen(Qt::NoPen);
+		p.setBrush(st::sideBarActivePillBg);
+		p.drawRoundedRect(
+			QRect(center - QPoint(pill.width() / 2, pill.height() / 2), pill),
+			pill.height() / 2.,
+			pill.height() / 2.);
+	}
 
 	RippleButton::paintRipple(p, 0, 0);
 

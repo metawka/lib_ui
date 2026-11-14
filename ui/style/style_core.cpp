@@ -58,7 +58,42 @@ void StopShortAnimation() {
 	}
 }
 
+bool Md3Enabled_ = false;
+int Md3Groups_ = 0;
+bool Md3Fill_ = false;
+bool Md3Grouped_ = false;
+
+bool Md3(int mask) {
+	return Md3Enabled_ && ((Md3Groups_ & mask) == mask);
+}
+
+bool Md3Fill() {
+	return Md3Fill_;
+}
+
 } // namespace internal
+
+void SetMd3(bool enabled, int groups, bool fill) {
+	internal::Md3Enabled_ = enabled;
+	internal::Md3Groups_ = groups;
+	internal::Md3Fill_ = fill;
+}
+
+void SetMd3Grouped(bool grouped) {
+	internal::Md3Grouped_ = grouped;
+}
+
+bool Md3Grouped() {
+	return internal::Md3Grouped_;
+}
+
+bool Md3Enabled() {
+	return internal::Md3Enabled_;
+}
+
+bool Md3Group(int group) {
+	return internal::Md3(1 << (group - 1));
+}
 
 void StartManager(int scale) {
 	internal::RegisterFontFamily("Open Sans");

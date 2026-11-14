@@ -265,7 +265,10 @@ void LayerStackWidget::BackgroundWidget::paintEvent(QPaintEvent *e) {
 
 	p.setOpacity(bgOpacity);
 	auto overSpecialOpacity = (layerOpacity * specialLayerOpacity);
-	auto bg = myrtlrect(mainMenuRight, 0, width() - mainMenuRight, height());
+	const auto bgLeft = (mainMenuRight > 0)
+		? std::max(mainMenuRight - st::mainMenuRadius, 0)
+		: 0;
+	auto bg = myrtlrect(bgLeft, 0, width() - bgLeft, height());
 
 	if (_mainMenuCache.isNull() && mainMenuRight > 0) {
 		// All cache images are taken together with their shadows,

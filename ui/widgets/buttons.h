@@ -6,6 +6,8 @@
 //
 #pragma once
 
+#include <QtGui/QPainterPath>
+
 #include "ui/abstract_button.h"
 #include "ui/round_rect.h"
 #include "ui/effects/animations.h"
@@ -297,6 +299,14 @@ private:
 	Ui::Animations::Basic _loadingAnimation;
 
 };
+
+QPainterPath PaintGroupedRow(
+	QPainter &p,
+	not_null<QWidget*> self,
+	QColor base,
+	bool over);
+
+void SetupGroupedRowBackground(not_null<RpWidget*> row);
 
 class SettingsButton : public Ui::RippleButton {
 public:
