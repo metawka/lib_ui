@@ -315,10 +315,12 @@ protected:
 	QPixmap grabInnerCache();
 
 	void resizeEvent(QResizeEvent *e) override;
+	void moveEvent(QMoveEvent *e) override;
 	void paintEvent(QPaintEvent *e) override;
 	void keyPressEvent(QKeyEvent *e) override;
 
 private:
+	void exdUpdateCorners();
 	void finishPrepare();
 	void finishScrollCreate();
 	void setInner(object_ptr<RpWidget> inner, const style::ScrollArea &st);

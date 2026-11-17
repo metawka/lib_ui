@@ -22,6 +22,52 @@
 #include <QtGui/QtEvents>
 
 namespace Ui {
+namespace {
+
+[[nodiscard]] bool ExdRoundShadow() {
+	return st::boxRadius > 8;
+}
+
+void ExdPaintBoxShadow(QPainter &p, QRect box) {
+	const auto steps = std::max(1, st::boxRoundShadow.extend.top());
+	const auto radius = double(st::boxRadius);
+	auto hq = PainterHighQualityEnabler(p);
+	p.setPen(Qt::NoPen);
+	auto color = st::windowShadowFg->c;
+	const auto base = color.alphaF();
+	for (auto i = steps; i > 0; --i) {
+		const auto t = 1. - double(i) / (steps + 1);
+		color.setAlphaF(base * 0.09 * t * t);
+		p.setBrush(color);
+		const auto spread = QRectF(box).adjusted(-i, -i + i / 3., i, i + i / 3.);
+		p.drawRoundedRect(spread, radius + i, radius + i);
+	}
+}
+
+[[nodiscard]] QPixmap ExdGrabBox(not_null<RpWidget*> target) {
+	if (!ExdRoundShadow()) {
+		return Shadow::grab(target, st::boxRoundShadow);
+	}
+	SendPendingMoveResizeEvents(target);
+	const auto extend = st::boxRoundShadow.extend;
+	const auto rect = target->rect();
+	const auto full = QRect(
+		0,
+		0,
+		extend.left() + rect.width() + extend.right(),
+		extend.top() + rect.height() + extend.bottom());
+	auto result = QPixmap(full.size() * style::DevicePixelRatio());
+	result.setDevicePixelRatio(style::DevicePixelRatio());
+	result.fill(Qt::transparent);
+	{
+		auto p = QPainter(&result);
+		ExdPaintBoxShadow(p, full.marginsRemoved(extend));
+		RenderWidget(p, target, QPoint(extend.left(), extend.top()));
+	}
+	return result;
+}
+
+} // namespace
 
 class LayerStackWidget::BackgroundWidget : public RpWidget {
 public:
@@ -343,7 +389,11 @@ void LayerStackWidget::BackgroundWidget::paintEvent(QPaintEvent *e) {
 		}
 		if (_layerCache.isNull()) {
 			p.setOpacity(layerOpacity);
-			Ui::Shadow::paint(p, layerBox, width(), st::boxRoundShadow);
+			if (ExdRoundShadow()) {
+				ExdPaintBoxShadow(p, layerBox);
+			} else {
+				Ui::Shadow::paint(p, layerBox, width(), st::boxRoundShadow);
+			}
 		}
 	}
 	if (!_layerCache.isNull() && layerOpacity > 0) {
@@ -585,7 +635,7 @@ void LayerStackWidget::setCacheImages() {
 	}
 	auto layerCache = QPixmap();
 	if (auto layer = currentLayer()) {
-		layerCache = Ui::Shadow::grab(layer, st::boxRoundShadow);
+		layerCache = ExdGrabBox(layer);
 	}
 	if (isAncestorOf(window()->focusWidget())) {
 		setFocus();

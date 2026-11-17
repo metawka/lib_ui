@@ -19,6 +19,8 @@
 #include "styles/style_layers.h"
 #include "styles/palette.h"
 
+#include <cmath>
+
 namespace Ui {
 namespace {
 
@@ -417,6 +419,43 @@ void BoxContent::resizeEvent(QResizeEvent *e) {
 	if (_scroll) {
 		updateScrollAreaGeometry();
 	}
+	exdUpdateCorners();
+}
+
+void BoxContent::moveEvent(QMoveEvent *e) {
+	RpWidget::moveEvent(e);
+	exdUpdateCorners();
+}
+
+void BoxContent::exdUpdateCorners() {
+	const auto radius = st::boxRadius;
+	const auto parent = parentWidget();
+	if (radius <= 8 || !parent) {
+		if (!mask().isEmpty()) {
+			clearMask();
+		}
+		return;
+	}
+	const auto outer = parent->size();
+	const auto mine = geometry();
+	const auto touchesTop = mine.y() < radius;
+	const auto touchesBottom = mine.y() + mine.height() > outer.height() - radius;
+	if (!touchesTop && !touchesBottom) {
+		if (!mask().isEmpty()) {
+			clearMask();
+		}
+		return;
+	}
+	auto region = QRegion(0, radius, outer.width(), std::max(outer.height() - 2 * radius, 0));
+	for (auto row = 0; row != radius; ++row) {
+		const auto dy = double(radius - row);
+		const auto inset = int(std::ceil(radius - std::sqrt(std::max(radius * radius - dy * dy, 0.))));
+		const auto width = std::max(outer.width() - 2 * inset, 0);
+		region += QRect(inset, row, width, 1);
+		region += QRect(inset, outer.height() - 1 - row, width, 1);
+	}
+	region.translate(-mine.topLeft());
+	setMask(region.intersected(QRect(QPoint(), mine.size())));
 }
 
 void BoxContent::keyPressEvent(QKeyEvent *e) {
