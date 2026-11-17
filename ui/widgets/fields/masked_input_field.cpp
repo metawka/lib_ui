@@ -8,6 +8,10 @@
 
 #include "base/qt/qt_common_adapters.h"
 #include "ui/painter.h"
+#include "ui/effects/animations.h"
+#include "base/flat_map.h"
+#include <memory>
+#include <algorithm>
 #include "ui/widgets/popup_menu.h"
 #include "ui/integration.h"
 #include "styles/palette.h"
@@ -145,6 +149,25 @@ void MaskedInputField::setTextMargins(const QMargins &mrg) {
 	refreshPlaceholder(_placeholderFull.current());
 }
 
+namespace {
+
+// exDesktop / Material 3 Expressive: a freshly typed character pops in from below with a spring,
+// growing and fading in. The state of each field lives here, so the header stays untouched.
+struct CharPop {
+	Ui::Animations::Simple animation;
+	int index = -1;
+	QString ch;
+};
+
+base::flat_map<const MaskedInputField*, std::unique_ptr<CharPop>> &CharPops() {
+	static auto result = base::flat_map<
+		const MaskedInputField*,
+		std::unique_ptr<CharPop>>();
+	return result;
+}
+
+} // namespace
+
 void MaskedInputField::paintEvent(QPaintEvent *e) {
 	auto p = QPainter(this);
 
@@ -222,6 +245,40 @@ void MaskedInputField::paintEvent(QPaintEvent *e) {
 
 	paintAdditionalPlaceholder(p);
 	QLineEdit::paintEvent(e);
+
+	const auto &pops = CharPops();
+	const auto i = pops.find(this);
+	if (i == pops.end() || !i->second->animation.animating()) {
+		return;
+	}
+	const auto &pop = *i->second;
+	const auto current = text();
+	if (pop.index < 0
+		|| pop.index >= current.size()
+		|| current.mid(pop.index, 1) != pop.ch
+		|| cursorPosition() != pop.index + 1
+		|| hasSelectedText()) {
+		return;
+	}
+	const auto t = pop.animation.value(1.);
+	const auto metrics = fontMetrics();
+	const auto caret = cursorRect();
+	const auto right = caret.center().x() - 0.5;
+	const auto w = double(metrics.horizontalAdvance(pop.ch));
+	auto q = QPainter(this);
+	PainterHighQualityEnabler hq(q);
+	const auto bg = (_st.textBg->c.alphaF() >= 0.99) ? _st.textBg->c : st::windowBg->c;
+	q.fillRect(QRectF(right - w, caret.top(), w, caret.height()), bg);
+	const auto baseline = caret.top() + metrics.ascent();
+	const auto center = QPointF(right - w / 2., caret.center().y());
+	const auto offset = (1. - t) * style::ConvertScaleExact(10.);
+	const auto scale = 0.55 + 0.45 * t;
+	q.setOpacity(std::clamp(t * 1.6, 0., 1.));
+	q.translate(center + QPointF(0., offset));
+	q.scale(scale, scale);
+	q.setFont(font());
+	q.setPen(_st.textFg);
+	q.drawText(QPointF(-w / 2., baseline - center.y()), pop.ch);
 }
 
 QString MaskedInputField::getDisplayedText() const {
@@ -430,6 +487,25 @@ void MaskedInputField::onTextEdited() {
 	int32 wasCursor(_oldcursor), newCursor(cursorPosition());
 
 	correctValue(wasText, wasCursor, newText, newCursor);
+	if (newText.size() > wasText.size() && newCursor > 0 && newCursor <= newText.size()) {
+		const auto ch = newText.mid(newCursor - 1, 1);
+		if (!ch.trimmed().isEmpty()) {
+			auto &pops = CharPops();
+			auto j = pops.find(this);
+			if (j == pops.end()) {
+				j = pops.emplace(this, std::make_unique<CharPop>()).first;
+				const auto key = static_cast<const MaskedInputField*>(this);
+				QObject::connect(this, &QObject::destroyed, [key] {
+					CharPops().erase(key);
+				});
+			}
+			auto &pop = *j->second;
+			pop.index = newCursor - 1;
+			pop.ch = ch;
+			pop.animation.stop();
+			pop.animation.start([=] { update(); }, 0., 1., 360, anim::easeOutBack);
+		}
+	}
 	_oldtext = newText;
 	_oldcursor = newCursor;
 	if (wasText != _oldtext) changed();

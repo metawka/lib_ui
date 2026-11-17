@@ -179,6 +179,8 @@ public:
 
 	void setFullWidth(int newFullWidth);
 	void setFullRadius(bool enabled);
+	// exDesktop: Material 3 Expressive hover. The pill grows and its edge turns wavy.
+	void setWavy(bool enabled);
 	void setCornerRadii(
 		int topLeft,
 		int topRight,
@@ -192,8 +194,10 @@ protected:
 
 	QImage prepareRippleMask() const override;
 	QPoint prepareRippleStartPosition() const override;
+	void onStateChanged(State was, StateChangeSource source) override;
 
 private:
+	void paintWavy(QPainter &p, const QRect &rounded);
 	void setNumbersText(const QString &numbersText, int numbers);
 	void numbersAnimationCallback();
 	void resizeToText(const TextWithEntities &text);
@@ -205,6 +209,11 @@ private:
 	std::unique_ptr<NumbersAnimation> _numbers;
 
 	int _fullWidthOverride = 0;
+	bool _wavy = false;
+	double _wavyPhase = 0.;
+	Ui::Animations::Simple _wavyGrow;
+	Ui::Animations::Simple _wavyPress;
+	Ui::Animations::Basic _wavyClock;
 
 	const style::RoundButton &_st;
 	std::optional<QBrush> _brushOverride;

@@ -16,6 +16,13 @@
 #include "ui/rect.h"
 #include "ui/qt_object_factory.h"
 #include "ui/round_rect.h"
+#include "ui/effects/animation_value.h"
+#include <QtGui/QPainterPath>
+#include "base/flat_map.h"
+#include "base/flat_set.h"
+#include <algorithm>
+#include <memory>
+#include <cmath>
 
 #include <QtGui/QtEvents>
 
@@ -475,6 +482,10 @@ int RoundButton::contentWidth() const {
 		width() - _st.padding.left() - _st.padding.right());
 }
 
+namespace {
+base::flat_set<const RoundButton*> &CalmButtons();
+} // namespace
+
 void RoundButton::paintEvent(QPaintEvent *e) {
 	Painter p(this);
 
@@ -512,24 +523,33 @@ void RoundButton::paintEvent(QPaintEvent *e) {
 			rect.paint(p, fill);
 		}
 	};
-	if (_penOverride && !_rippleOverride) {
-		paintRipple(p, rounded.topLeft());
-	}
-	drawRect(_roundRect);
-
 	auto over = isOver();
 	auto down = isDown();
-	if (!_brushOverride && (over || down)) {
-		drawRect(_roundRectOver);
+	if (_wavy && !_brushOverride) {
+		paintWavy(p, rounded);
+	} else {
+		if (_penOverride && !_rippleOverride) {
+			paintRipple(p, rounded.topLeft());
+		}
+		drawRect(_roundRect);
+
+		if (!_brushOverride && (over || down)) {
+			drawRect(_roundRectOver);
+		}
+
+		if (!_penOverride || _rippleOverride) {
+			paintRipple(
+				p,
+				rounded.topLeft(),
+				_rippleOverride ? &*_rippleOverride : nullptr);
+		}
 	}
 
-	if (!_penOverride || _rippleOverride) {
-		paintRipple(
-			p,
-			rounded.topLeft(),
-			_rippleOverride ? &*_rippleOverride : nullptr);
+	if (_wavy && CalmButtons().contains(this)) {
+		const auto k = std::clamp(_wavyGrow.value(isOver() ? 1. : 0.), 0., 1.2);
+		const auto press = std::clamp(_wavyPress.value(isDown() ? 1. : 0.), 0., 1.);
+		p.translate(0., -style::ConvertScaleExact(2.) * k * (1. - press));
 	}
-
 	const auto textTop = _st.padding.top() + _st.textTop;
 	auto textLeft = _st.padding.left()
 		+ ((width()
@@ -614,6 +634,129 @@ QPoint RoundButton::prepareRippleStartPosition() const {
 }
 
 RoundButton::~RoundButton() = default;
+
+namespace {
+
+base::flat_set<const RoundButton*> &CalmButtons() {
+	static auto result = base::flat_set<const RoundButton*>();
+	return result;
+}
+
+} // namespace
+
+void SetCalmHover(not_null<RoundButton*> button) {
+	CalmButtons().emplace(button.get());
+	const auto key = static_cast<const RoundButton*>(button.get());
+	QObject::connect(button.get(), &QObject::destroyed, [key] {
+		CalmButtons().remove(key);
+	});
+	button->setWavy(true);
+}
+
+void RoundButton::setWavy(bool enabled) {
+	_wavy = enabled;
+	if (enabled) {
+		_wavyClock.init([=](crl::time now) {
+			_wavyPhase = now / 1000. * 4.6;
+			update();
+			return isOver() || _wavyGrow.value(0.) > 0.001;
+		});
+	} else {
+		_wavyClock.stop();
+	}
+	update();
+}
+
+void RoundButton::onStateChanged(State was, StateChangeSource source) {
+	RippleButton::onStateChanged(was, source);
+	if (!_wavy) {
+		return;
+	}
+	const auto over = isOver();
+	if (over != static_cast<bool>(was & StateFlag::Over)) {
+		_wavyGrow.start(
+			[=] { update(); },
+			_wavyGrow.value(over ? 0. : 1.),
+			over ? 1. : 0.,
+			over ? 480 : 420,
+			over ? anim::easeOutBack : anim::easeOutCubic);
+		if (over && !_wavyClock.animating()) {
+			_wavyClock.start();
+		}
+	}
+	const auto down = isDown();
+	if (down != static_cast<bool>(was & StateFlag::Down)) {
+		_wavyPress.start(
+			[=] { update(); },
+			_wavyPress.value(down ? 0. : 1.),
+			down ? 1. : 0.,
+			down ? 120 : 420,
+			down ? anim::sineInOut : anim::easeOutBack);
+	}
+}
+
+void RoundButton::paintWavy(QPainter &p, const QRect &rounded) {
+	const auto grow = _wavyGrow.value(isOver() ? 1. : 0.);
+	const auto press = std::clamp(_wavyPress.value(isDown() ? 1. : 0.), 0., 1.);
+	const auto k = std::max(0., grow);
+	// at rest the pill sits a little inside; on hover it grows out and its edge waves;
+	// a press calms the waves and squeezes it back
+	const auto calm = CalmButtons().contains(this);
+	const auto inset = 4.2 - 2.0 * k + 2.2 * press;
+	const auto amplitude = calm ? 0. : (2.0 * k * (1. - 0.85 * press));
+	const auto lift = calm ? (style::ConvertScaleExact(2.) * std::clamp(k, 0., 1.2) * (1. - press)) : 0.;
+	const auto box = QRectF(rounded).marginsRemoved(
+		QMarginsF(inset, inset, inset, inset));
+	const auto radius = box.height() / 2.;
+	auto base = QPainterPath();
+	base.addRoundedRect(box, radius, radius);
+	QPainterPath shape;
+	if (amplitude < 0.02) {
+		shape = base;
+	} else {
+		const auto length = base.length();
+		const auto steps = std::max(60, int(length / 2.));
+		const auto waves = std::max(8., std::round(length / 34.));
+		for (auto i = 0; i <= steps; ++i) {
+			const auto t = double(i) / steps;
+			const auto at = base.pointAtPercent(t);
+			const auto ahead = base.pointAtPercent(std::fmod(t + 0.001, 1.));
+			auto nx = ahead.y() - at.y(), ny = -(ahead.x() - at.x());
+			const auto n = std::hypot(nx, ny);
+			if (n > 0.) {
+				nx /= n;
+				ny /= n;
+			}
+			const auto push = amplitude * std::sin(t * waves * 2. * M_PI - _wavyPhase);
+			const auto point = QPointF(at.x() + nx * push, at.y() + ny * push);
+			(i == 0) ? shape.moveTo(point) : shape.lineTo(point);
+		}
+		shape.closeSubpath();
+	}
+	// premultiplied mix: a transparent rest colour must not drag the hover colour towards black
+	const auto mix = std::clamp(k, 0., 1.);
+	const auto a = _st.textBg->c, b = _st.textBgOver->c;
+	const auto aa = a.alphaF() * (1. - mix), ba = b.alphaF() * mix;
+	const auto alpha = aa + ba;
+	const auto channel = [&](double x, double y) {
+		return (alpha > 0.) ? (x * aa + y * ba) / alpha : y;
+	};
+	const auto fill = QColor::fromRgbF(
+		channel(a.redF(), b.redF()),
+		channel(a.greenF(), b.greenF()),
+		channel(a.blueF(), b.blueF()),
+		std::clamp(alpha, 0., 1.));
+	PainterHighQualityEnabler hq(p);
+	p.setPen(Qt::NoPen);
+	if (lift > 0.) {
+		// a soft shadow stays down while the pill rises
+		p.setBrush(QColor(0, 0, 0, int(60 * std::clamp(k, 0., 1.))));
+		p.drawPath(shape.translated(0., style::ConvertScaleExact(1.)));
+		shape.translate(0., -lift);
+	}
+	p.setBrush(fill);
+	p.drawPath(shape);
+}
 
 IconButton::IconButton(QWidget *parent, const style::IconButton &st) : RippleButton(parent, st.ripple)
 , _st(st) {
@@ -974,13 +1117,73 @@ int SettingsButton::fullTextWidth() const {
 	return _text.maxWidth();
 }
 
+namespace {
+
+// Material 3 Expressive list rows: the hover state is a rounded plate inset from the edges;
+// a press squeezes it and tightens its corners. The motion state of each row lives here.
+struct RowMotion {
+	Ui::Animations::Simple over;
+	Ui::Animations::Simple down;
+	bool overNow = false;
+	bool downNow = false;
+};
+
+base::flat_map<const SettingsButton*, std::unique_ptr<RowMotion>> &RowMotions() {
+	static auto result = base::flat_map<
+		const SettingsButton*,
+		std::unique_ptr<RowMotion>>();
+	return result;
+}
+
+RowMotion *FindRowMotion(const SettingsButton *button) {
+	const auto &map = RowMotions();
+	const auto i = map.find(button);
+	return (i != map.end()) ? i->second.get() : nullptr;
+}
+
+} // namespace
+
 void SettingsButton::paintEvent(QPaintEvent *e) {
 	Painter p(this);
 
 	const auto paintOver = (isOver() || isDown()) && !isDisabled();
-	paintBg(p, e->rect(), paintOver);
+	auto insideCards = false;
+	for (auto w = parentWidget(); w; w = w->parentWidget()) {
+		if (w->property("exdCards").toBool()) {
+			insideCards = true;
+			break;
+		}
+	}
+	if (!insideCards) {
+		p.fillRect(e->rect(), _st.textBg);
+	}
 
+	const auto motion = FindRowMotion(this);
+	const auto overK = motion
+		? std::max(0., motion->over.value(motion->overNow ? 1. : 0.))
+		: (paintOver ? 1. : 0.);
+	const auto downK = motion
+		? std::clamp(motion->down.value(motion->downNow ? 1. : 0.), 0., 1.)
+		: 0.;
+	const auto insetX = style::ConvertScaleExact(insideCards ? 18. : 8.) + style::ConvertScaleExact(3.) * downK;
+	const auto insetY = style::ConvertScaleExact(insideCards ? 3. : 2.) + style::ConvertScaleExact(1.5) * downK;
+	// inside a card (radius 24, plate 6px in) the plate's corners are concentric with it
+	const auto radius = style::ConvertScaleExact(insideCards ? 18. : 12.) - style::ConvertScaleExact(4.) * downK;
+	auto plate = QPainterPath();
+	plate.addRoundedRect(
+		QRectF(rect()).marginsRemoved(QMarginsF(insetX, insetY, insetX, insetY)),
+		radius,
+		radius);
+	if (overK > 0.) {
+		auto color = _st.textBgOver->c;
+		color.setAlphaF(color.alphaF() * std::min(1., overK));
+		PainterHighQualityEnabler hq(p);
+		p.fillPath(plate, color);
+	}
+	p.save();
+	p.setClipPath(plate);
 	paintRipple(p, 0, 0);
+	p.restore();
 
 	const auto outerw = width();
 	paintText(p, paintOver, outerw);
@@ -1052,6 +1255,37 @@ void SettingsButton::onStateChanged(
 	}
 	if (nowDisabled != wasDisabled) {
 		setPointerCursor(!isDisabled());
+	}
+
+	auto &map = RowMotions();
+	auto i = map.find(this);
+	if (i == map.end()) {
+		i = map.emplace(this, std::make_unique<RowMotion>()).first;
+		const auto key = static_cast<const SettingsButton*>(this);
+		QObject::connect(this, &QObject::destroyed, [key] {
+			RowMotions().erase(key);
+		});
+	}
+	auto &motion = *i->second;
+	const auto over = (isOver() || isDown()) && !isDisabled();
+	if (over != motion.overNow) {
+		motion.overNow = over;
+		motion.over.start(
+			[=] { update(); },
+			motion.over.value(over ? 0. : 1.),
+			over ? 1. : 0.,
+			over ? 220 : 260,
+			anim::easeOutCubic);
+	}
+	const auto down = isDown() && !isDisabled();
+	if (down != motion.downNow) {
+		motion.downNow = down;
+		motion.down.start(
+			[=] { update(); },
+			motion.down.value(down ? 0. : 1.),
+			down ? 1. : 0.,
+			down ? 120 : 420,
+			down ? anim::easeOutCubic : anim::easeOutBack);
 	}
 }
 

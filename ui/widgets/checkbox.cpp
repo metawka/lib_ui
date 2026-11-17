@@ -14,6 +14,9 @@
 #include "styles/palette.h"
 
 #include <QtGui/QtEvents>
+#include <QtGui/QPainterPath>
+#include <algorithm>
+#include <cmath>
 #include <QtCore/QtMath>
 
 namespace Ui {
@@ -60,7 +63,7 @@ void AbstractCheckView::setChecked(bool checked, anim::type animated) {
 			[=] { if (_updateCallback) _updateCallback(); },
 			_checked ? 0. : 1.,
 			_checked ? 1. : 0.,
-			_duration,
+			MaterialSwitches() ? (_duration * 5 / 2) : _duration,
 			MaterialSwitches() ? anim::easeOutCubic : anim::linear);
 	}
 	checkedChangedHook(animated);
@@ -159,12 +162,26 @@ void ToggleView::paint(QPainter &p, int left, int top, int outerWidth) {
 			padding / 2.,
 			padding / 2.,
 			padding / 2.));
+		// Expressive: while it travels the handle swells and stretches along the track
+		const auto travel = std::sin(M_PI * std::clamp(toggled, 0., 1.));
+		const auto swell = style::ConvertScaleExact(2.) * travel;
+		const auto stretch = style::ConvertScaleExact(3.) * travel;
+		fgRectF = fgRectF.marginsAdded(QMarginsF(
+			swell / 2. + stretch / 2.,
+			swell / 2.,
+			swell / 2. + stretch / 2.,
+			swell / 2.));
 	}
 	auto pen = anim::pen(_st->untoggledFg, _st->toggledFg, toggled);
 	pen.setWidth(_st->border);
 	p.setPen(pen);
 	p.setBrush(anim::brush(_st->untoggledBg, _st->toggledBg, toggled));
-	p.drawEllipse(fgRectF);
+	if (material) {
+		const auto r = fgRectF.height() / 2.;
+		p.drawRoundedRect(fgRectF, r, r);
+	} else {
+		p.drawEllipse(fgRectF);
+	}
 
 	if (material && (_locked || _st->xsize > 0)) {
 		const auto full = float64(_st->diameter);
@@ -309,6 +326,77 @@ void CheckView::setStyle(const style::Check &st) {
 }
 
 void CheckView::paint(QPainter &p, int left, int top, int outerWidth) {
+	if (MaterialSwitches()) {
+		// Material 3 checkbox: an 18 px box with 2 px corners inside the 22 px cell. Checking
+		// fills it from the centre, gives it a small pop and draws the check stroke by stroke.
+		const auto t = std::clamp(currentAnimationValue(), 0., 1.);
+		const auto untoggled = _untoggledOverride
+			? *_untoggledOverride
+			: _st->untoggledFg->c;
+		const auto toggledColor = _st->toggledFg->c;
+		const auto full = double(_st->diameter);
+		const auto pop = 1. + 0.12 * std::sin(M_PI * t);
+		const auto side = full * (18. / 22.) * pop;
+		const auto center = QPointF(left + full / 2., top + full / 2.);
+		const auto box = style::rtlrect(
+			QRectF(center.x() - side / 2., center.y() - side / 2., side, side),
+			outerWidth);
+		const auto radius = style::ConvertScaleExact(2.) * pop;
+		const auto stroke = double(_st->thickness);
+		PainterHighQualityEnabler hq(p);
+		if (t < 1.) {
+			auto pen = QPen(anim::color(untoggled, toggledColor, t));
+			pen.setWidthF(stroke);
+			p.setPen(pen);
+			p.setBrush(Qt::NoBrush);
+			const auto half = stroke / 2.;
+			p.drawRoundedRect(
+				box.marginsRemoved(QMarginsF(half, half, half, half)),
+				std::max(0., radius - half),
+				std::max(0., radius - half));
+		}
+		if (t > 0.) {
+			// the fill grows out of the centre
+			const auto grow = std::sqrt(t);
+			const auto fillSide = side * grow;
+			const auto fill = QRectF(
+				box.center().x() - fillSide / 2.,
+				box.center().y() - fillSide / 2.,
+				fillSide,
+				fillSide);
+			p.setPen(Qt::NoPen);
+			p.setBrush(toggledColor);
+			p.drawRoundedRect(fill, radius * grow, radius * grow);
+
+			// the check is drawn along its path, short stroke first
+			const auto at = [&](double x, double y) {
+				return QPointF(box.x() + box.width() * x, box.y() + box.height() * y);
+			};
+			const auto a = at(0.26, 0.52), b = at(0.43, 0.68), c = at(0.75, 0.34);
+			const auto first = std::hypot(b.x() - a.x(), b.y() - a.y());
+			const auto second = std::hypot(c.x() - b.x(), c.y() - b.y());
+			const auto drawn = std::clamp((t - 0.25) / 0.75, 0., 1.) * (first + second);
+			if (drawn > 0.) {
+				auto path = QPainterPath(a);
+				if (drawn <= first) {
+					path.lineTo(a + (b - a) * (drawn / first));
+				} else {
+					path.lineTo(b);
+					path.lineTo(b + (c - b) * ((drawn - first) / second));
+				}
+				auto checkPen = QPen(
+					st::windowFgActive->c,
+					style::ConvertScaleExact(2.) * pop,
+					Qt::SolidLine,
+					Qt::RoundCap,
+					Qt::RoundJoin);
+				p.setPen(checkPen);
+				p.setBrush(Qt::NoBrush);
+				p.drawPath(path);
+			}
+		}
+		return;
+	}
 	auto toggled = currentAnimationValue();
 	auto pen = _untoggledOverride
 		? anim::pen(*_untoggledOverride, _st->toggledFg, toggled)
@@ -471,6 +559,43 @@ void RadioView::setStyle(const style::Radio &st) {
 
 void RadioView::paint(QPainter &p, int left, int top, int outerWidth) {
 	PainterHighQualityEnabler hq(p);
+	if (MaterialSwitches()) {
+		// Material 3 Expressive radio: the dot pops in past its size and settles, the ring
+		// thickens for a moment and a soft wave leaves it
+		const auto t = std::clamp(currentAnimationValue(), 0., 1.);
+		const auto untoggled = _untoggledOverride
+			? *_untoggledOverride
+			: _st->untoggledFg->c;
+		const auto toggledColor = _toggledOverride
+			? *_toggledOverride
+			: _st->toggledFg->c;
+		const auto color = anim::color(untoggled, toggledColor, t);
+		const auto full = double(_st->diameter);
+		const auto center = style::rtlrect(QRectF(left, top, full, full), outerWidth).center();
+		const auto ringRadius = full / 2. - (_st->outerSkip / 10.) - _st->thickness / 2.;
+		const auto bump = std::sin(M_PI * t);
+		if (bump > 0.01 && t < 0.98) {
+			auto wave = toggledColor;
+			wave.setAlphaF(wave.alphaF() * 0.28 * (1. - t));
+			p.setPen(Qt::NoPen);
+			p.setBrush(wave);
+			const auto r = ringRadius + style::ConvertScaleExact(7.) * t;
+			p.drawEllipse(center, r, r);
+		}
+		auto pen = QPen(color);
+		pen.setWidthF(_st->thickness + style::ConvertScaleExact(1.2) * bump);
+		p.setPen(pen);
+		p.setBrush(_st->bg);
+		p.drawEllipse(center, ringRadius, ringRadius);
+		if (t > 0.) {
+			const auto dot = (full / 2. - _st->skip / 10.)
+				* (t + 0.32 * bump);
+			p.setPen(Qt::NoPen);
+			p.setBrush(color);
+			p.drawEllipse(center, dot, dot);
+		}
+		return;
+	}
 
 	auto toggled = currentAnimationValue();
 	auto pen = _toggledOverride

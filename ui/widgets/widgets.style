@@ -713,7 +713,7 @@ defaultRippleAnimationBgOver: RippleAnimation(defaultRippleAnimation) {
 	color: windowBgOver;
 }
 
-buttonRadius: 4px;
+buttonRadius: 20px;
 
 defaultActiveButton: RoundButton {
 	textFg: activeButtonFg;
@@ -860,7 +860,7 @@ defaultRadio: Radio {
 	rippleAreaPadding: 8px;
 }
 defaultToggle: Toggle {
-	toggledBg: windowBg;
+	toggledBg: windowFgActive;
 	toggledFg: windowBgActive;
 	untoggledBg: windowBg;
 	untoggledFg: checkboxFg;

@@ -5,6 +5,7 @@
 // https://github.com/desktop-app/legal/blob/master/LEGAL
 //
 #include "ui/widgets/box_content_divider.h"
+#include "ui/painter.h"
 
 #include "styles/style_layers.h"
 #include "styles/style_widgets.h"
@@ -29,12 +30,30 @@ BoxContentDivider::BoxContentDivider(
 void BoxContentDivider::paintEvent(QPaintEvent *e) {
 	QPainter p(this);
 
-	p.fillRect(e->rect(), _st.bg);
-	if (_parts & RectPart::Top) {
-		paintTop(p);
+	// Material 3: no full-width grey bands. A thin gap becomes a hairline divider, a taller
+	// block (usually with explanatory text over it) becomes a rounded tonal card.
+	for (auto w = parentWidget(); w; w = w->parentWidget()) {
+		if (w->property("exdCards").toBool()) {
+			return; // the settings cards draw the sections, the divider is just a gap
+		}
 	}
-	if (_parts & RectPart::Bottom) {
-		paintBottom(p);
+	p.fillRect(e->rect(), st::windowBg);
+	PainterHighQualityEnabler hq(p);
+	if (height() <= style::ConvertScale(20)) {
+		const auto inset = style::ConvertScaleExact(24.);
+		const auto y = height() / 2.;
+		p.setPen(QPen(st::boxDividerFg, style::ConvertScaleExact(1.)));
+		p.drawLine(QPointF(inset, y), QPointF(width() - inset, y));
+	} else {
+		const auto card = QRectF(rect()).marginsRemoved(QMarginsF(
+			style::ConvertScaleExact(12.),
+			style::ConvertScaleExact(6.),
+			style::ConvertScaleExact(12.),
+			style::ConvertScaleExact(6.)));
+		const auto radius = style::ConvertScaleExact(16.);
+		p.setPen(Qt::NoPen);
+		p.setBrush(_st.bg);
+		p.drawRoundedRect(card, radius, radius);
 	}
 }
 
