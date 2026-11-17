@@ -119,9 +119,7 @@ QPixmap GrabWidget(not_null<QWidget*> target, QRect rect, QColor bg) {
 
 	auto result = QPixmap(rect.size() * style::DevicePixelRatio());
 	result.setDevicePixelRatio(style::DevicePixelRatio());
-	if (!target->testAttribute(Qt::WA_OpaquePaintEvent)) {
-		result.fill(bg);
-	}
+	result.fill(bg.isValid() ? bg : QColor(0, 0, 0, 0));
 	{
 		QPainter p(&result);
 		RenderWidget(p, target, QPoint(), rect);
@@ -139,9 +137,7 @@ QImage GrabWidgetToImage(not_null<QWidget*> target, QRect rect, QColor bg) {
 		rect.size() * style::DevicePixelRatio(),
 		QImage::Format_ARGB32_Premultiplied);
 	result.setDevicePixelRatio(style::DevicePixelRatio());
-	if (!target->testAttribute(Qt::WA_OpaquePaintEvent)) {
-		result.fill(bg);
-	}
+	result.fill(bg.isValid() ? bg : QColor(0, 0, 0, 0));
 	if (rect.isValid()) {
 		QPainter p(&result);
 		RenderWidget(p, target, QPoint(), rect);

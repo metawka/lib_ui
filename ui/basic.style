@@ -95,6 +95,7 @@ semiboldTextStyle: TextStyle(defaultTextStyle) {
 
 slideDuration: 240;
 slideShift: 100px;
+exdSlideAxisShift: 48px;
 slideShadow: icon {{ "slide_shadow", slideFadeOutShadowFg }};
 
 slideWrapDuration: 150;

@@ -395,8 +395,61 @@ void FlatButton::onStateChanged(State was, StateChangeSource source) {
 	update();
 }
 
+bool FlatButton::exdPill() const {
+	return (_st.exdRadius > 0) && style::Md3Floating();
+}
+
+QRect FlatButton::exdPillRect() const {
+	return QRect(0, height() - _st.height, width(), _st.height).marginsRemoved(
+		_st.exdMargins);
+}
+
+QImage FlatButton::prepareRippleMask() const {
+	if (!exdPill()) {
+		return RippleButton::prepareRippleMask();
+	}
+	const auto pill = exdPillRect();
+	return RippleAnimation::RoundRectMask(
+		pill.size(),
+		std::min(_st.exdRadius, pill.height() / 2));
+}
+
+QPoint FlatButton::prepareRippleStartPosition() const {
+	const auto result = RippleButton::prepareRippleStartPosition();
+	return exdPill() ? (result - exdPillRect().topLeft()) : result;
+}
+
 void FlatButton::paintEvent(QPaintEvent *e) {
 	QPainter p(this);
+
+	if (exdPill()) {
+		const auto pill = exdPillRect();
+		const auto radius = std::min(_st.exdRadius, pill.height() / 2);
+		{
+			auto hq = PainterHighQualityEnabler(p);
+			p.setPen(Qt::NoPen);
+			p.setBrush(isOver() ? _st.overBgColor : _st.bgColor);
+			p.drawRoundedRect(pill, radius, radius);
+		}
+		paintRipple(p, pill.topLeft());
+
+		p.setFont(isOver() ? _st.overFont : _st.font);
+		p.setRenderHint(QPainter::TextAntialiasing);
+		if (_colorOverride) {
+			p.setPen(*_colorOverride);
+		} else {
+			p.setPen(isOver() ? _st.overColor : _st.color);
+		}
+		auto text = _text;
+		if (!text.isEmpty() && text == text.toUpper()) {
+			text = text.left(1) + text.mid(1).toLower();
+		}
+		p.drawText(
+			pill.marginsRemoved(_textMargins),
+			text,
+			style::al_center);
+		return;
+	}
 
 	const auto inner = QRect(0, height() - _st.height, width(), _st.height);
 	p.fillRect(inner, isOver() ? _st.overBgColor : _st.bgColor);
@@ -1121,7 +1174,7 @@ QPainterPath PaintGroupedRow(
 		QPainter &p,
 		not_null<QWidget*> self,
 		QColor base,
-		bool over) {
+		float64 over) {
 	const auto inset = style::ConvertScale(10);
 	const auto gap = std::max(style::ConvertScale(1), 1);
 	const auto rp = dynamic_cast<RpWidget*>(self.get());
@@ -1129,16 +1182,18 @@ QPainterPath PaintGroupedRow(
 	const auto width = self->width() - extra.left() - extra.right();
 	const auto height = self->height();
 	const auto above = GroupedNeighbourOverlap(self, true);
+	const auto below = GroupedNeighbourOverlap(self, false);
 	const auto prev = (above >= 0);
-	const auto next = GroupedNeighbour(self, false);
-	const auto cut = std::max(above, 0);
+	const auto next = (below >= 0);
+	const auto topCut = prev ? (above / 2 + gap) : extra.top();
+	const auto bottomCut = next ? (below - below / 2) : extra.bottom();
 	const auto big = style::ConvertScale(18.);
 	const auto small = style::ConvertScale(4.);
 	const auto card = QRectF(
 		extra.left() + inset,
-		prev ? (cut + gap) : 0,
+		topCut,
 		width - 2 * inset,
-		height - (prev ? (cut + gap) : 0) - (next ? gap : 0));
+		height - topCut - bottomCut);
 	const auto path = GroupedPath(
 		card,
 		prev ? small : big,
@@ -1146,8 +1201,20 @@ QPainterPath PaintGroupedRow(
 	auto hq = PainterHighQualityEnabler(p);
 	p.fillPath(
 		path,
-		GroupedMix(base, st::windowFg->c, over ? 0.09 : 0.055));
+		GroupedMix(base, st::windowFg->c, 0.055 + 0.035 * over));
 	return path;
+}
+
+void FillGroupedWidth(not_null<QWidget*> row) {
+	if (const auto checkbox = dynamic_cast<Checkbox*>(row.get())) {
+		checkbox->setProperty("md3GroupedFill", true);
+		checkbox->setNaturalWidth(-1);
+	}
+	for (const auto child : row->children()) {
+		if (const auto widget = qobject_cast<QWidget*>(child)) {
+			FillGroupedWidth(widget);
+		}
+	}
 }
 
 void SetupGroupedRowBackground(not_null<RpWidget*> row) {
@@ -1155,6 +1222,7 @@ void SetupGroupedRowBackground(not_null<RpWidget*> row) {
 		return;
 	}
 	row->setProperty("md3GroupedRow", true);
+	FillGroupedWidth(row);
 	const auto parent = row->parentWidget();
 	if (!parent) {
 		return;
@@ -1169,6 +1237,17 @@ void SetupGroupedRowBackground(not_null<RpWidget*> row) {
 	}, back->lifetime());
 	row->shownValue() | rpl::on_next([=](bool shown) {
 		back->setVisible(shown);
+	}, back->lifetime());
+	row->events() | rpl::filter([](not_null<QEvent*> e) {
+		return (e->type() == QEvent::ParentChange);
+	}) | rpl::on_next([=] {
+		const auto now = row->parentWidget();
+		if (now && back->parentWidget() != now) {
+			back->setParent(now);
+			back->setGeometry(row->geometry());
+			back->setVisible(!row->isHidden());
+			back->stackUnder(row);
+		}
 	}, back->lifetime());
 	back->paintRequest() | rpl::on_next([=] {
 		auto p = QPainter(back);
@@ -1190,6 +1269,7 @@ void SetupGroupedRowBackground(
 	if (!rpParent) {
 		return;
 	}
+	FillGroupedWidth(row);
 	const auto back = CreateChild<RpWidget>(parent);
 	back->setProperty("md3GroupedRow", true);
 	back->setAttribute(Qt::WA_TransparentForMouseEvents);
@@ -1198,11 +1278,17 @@ void SetupGroupedRowBackground(
 		row->geometryValue(),
 		rpParent->widthValue()
 	) | rpl::on_next([=](QRect geometry, int width) {
+		const auto outer = rpParent->getMargins();
+		const auto own = row->getMargins();
 		back->setGeometry(
-			0,
-			geometry.y() - extend.top(),
-			width,
-			geometry.height() + extend.top() + extend.bottom());
+			outer.left(),
+			geometry.y() + own.top() - extend.top(),
+			width - outer.left() - outer.right(),
+			(geometry.height()
+				- own.top()
+				- own.bottom()
+				+ extend.top()
+				+ extend.bottom()));
 		back->update();
 	}, back->lifetime());
 	row->shownValue() | rpl::on_next([=](bool shown) {
@@ -1221,13 +1307,18 @@ void SettingsButton::paintEvent(QPaintEvent *e) {
 	Painter p(this);
 
 	const auto paintOver = (isOver() || isDown()) && !isDisabled();
+	const auto overProgress = _exdOverAnimation.value(paintOver ? 1. : 0.);
 	const auto inset = style::ConvertScale(10);
 	const auto grouped = style::Md3Grouped()
 		&& (_st.textBg->c.alpha() == 255);
 	if (grouped && width() <= inset * 20) {
 		paintRipple(p, 0, 0);
 	} else if (grouped) {
-		const auto path = PaintGroupedRow(p, this, _st.textBg->c, paintOver);
+		const auto path = PaintGroupedRow(
+			p,
+			this,
+			_st.textBg->c,
+			overProgress);
 		p.save();
 		p.setClipPath(path);
 		paintRipple(p, 0, 0);
@@ -1242,9 +1333,11 @@ void SettingsButton::paintEvent(QPaintEvent *e) {
 		const auto radius = pill.height() / 2.;
 		auto path = QPainterPath();
 		path.addRoundedRect(pill, radius, radius);
-		if (paintOver) {
+		if (overProgress > 0.) {
 			auto hq = PainterHighQualityEnabler(p);
+			p.setOpacity(overProgress);
 			p.fillPath(path, _st.textBgOver);
+			p.setOpacity(1.);
 		}
 		p.save();
 		p.setClipPath(path);
@@ -1334,6 +1427,19 @@ void SettingsButton::onStateChanged(
 	const auto nowDisabled = isDisabled();
 	if (!nowDisabled || !isDown()) {
 		RippleButton::onStateChanged(was, source);
+	}
+	const auto wasOver = (!!(was & StateFlag::Over)
+			|| !!(was & StateFlag::Down))
+		&& !(was & StateFlag::Disabled);
+	const auto nowOver = (isOver() || isDown()) && !nowDisabled;
+	if (wasOver != nowOver && style::Md3Enabled()) {
+		const auto from = _exdOverAnimation.value(wasOver ? 1. : 0.);
+		_exdOverAnimation.start(
+			[=] { update(); },
+			from,
+			nowOver ? 1. : 0.,
+			st::exdSettingsHoverDuration,
+			anim::easeOutCubic);
 	}
 	if (_toggle) {
 		_toggle->setStyle(isOver() ? _st.toggleOver : _st.toggle);

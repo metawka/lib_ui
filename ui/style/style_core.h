@@ -42,6 +42,8 @@ void SetMd3(bool enabled, int groups, bool fill);
 [[nodiscard]] bool Md3Enabled();
 void SetMd3Grouped(bool grouped);
 [[nodiscard]] bool Md3Grouped();
+void SetMd3Floating(bool floating);
+[[nodiscard]] bool Md3Floating();
 [[nodiscard]] bool Md3Group(int group);
 
 void StartManager(int scale);

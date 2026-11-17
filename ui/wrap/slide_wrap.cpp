@@ -65,7 +65,7 @@ SlideWrap<RpWidget> *SlideWrap<RpWidget>::toggle(
 				_toggled ? 0. : 1.,
 				_toggled ? 1. : 0.,
 				_duration,
-				anim::linear);
+				anim::Expressive() ? anim::exdEmphasized : anim::linear);
 			if (_finishedCallback) {
 				_animation.setFinishedCallback(_finishedCallback);
 			}

@@ -324,7 +324,9 @@ void PanelAnimation::start() {
 
 auto PanelAnimation::computeState(float64 dt, float64 opacity) const
 -> PaintState {
-	auto &transition = anim::easeOutCirc;
+	auto &transition = anim::Expressive()
+		? anim::exdEmphasized
+		: anim::easeOutCirc;
 	if (dt < _alphaDuration) {
 		opacity *= transition(1., dt / _alphaDuration);
 	}

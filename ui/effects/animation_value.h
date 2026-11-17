@@ -41,6 +41,13 @@ extern transition easeInCubic;
 extern transition easeOutCubic;
 extern transition easeInQuint;
 extern transition easeOutQuint;
+extern transition exdEmphasized;
+extern transition exdSpring;
+
+[[nodiscard]] bool Expressive();
+void SetExpressive(bool enabled);
+[[nodiscard]] float64 ExdEmphasized(float64 dt);
+[[nodiscard]] float64 ExdSpring(float64 dt);
 
 inline transition bumpy(float64 bump) {
 	auto dt0 = (bump - sqrt(bump * (bump - 1.)));

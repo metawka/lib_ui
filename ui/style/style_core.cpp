@@ -62,6 +62,7 @@ bool Md3Enabled_ = false;
 int Md3Groups_ = 0;
 bool Md3Fill_ = false;
 bool Md3Grouped_ = false;
+bool Md3Floating_ = false;
 
 bool Md3(int mask) {
 	return Md3Enabled_ && ((Md3Groups_ & mask) == mask);
@@ -85,6 +86,14 @@ void SetMd3Grouped(bool grouped) {
 
 bool Md3Grouped() {
 	return internal::Md3Grouped_;
+}
+
+void SetMd3Floating(bool floating) {
+	internal::Md3Floating_ = floating;
+}
+
+bool Md3Floating() {
+	return internal::Md3Floating_;
 }
 
 bool Md3Enabled() {

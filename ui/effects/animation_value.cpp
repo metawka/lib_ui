@@ -115,6 +115,72 @@ transition easeInQuint = [](const float64 &delta, const float64 &dt) {
 	return result;
 };
 
+namespace {
+
+bool ExpressiveValue = false;
+
+float64 CubicBezier(float64 x1, float64 y1, float64 x2, float64 y2, float64 x) {
+	const auto coord = [](float64 a, float64 b, float64 t) {
+		const auto u = 1. - t;
+		return 3. * u * u * t * a + 3. * u * t * t * b + t * t * t;
+	};
+	auto lo = 0.;
+	auto hi = 1.;
+	auto t = x;
+	for (auto i = 0; i != 24; ++i) {
+		t = (lo + hi) / 2.;
+		if (coord(x1, x2, t) < x) {
+			lo = t;
+		} else {
+			hi = t;
+		}
+	}
+	return coord(y1, y2, t);
+}
+
+} // namespace
+
+bool Expressive() {
+	return ExpressiveValue;
+}
+
+void SetExpressive(bool enabled) {
+	ExpressiveValue = enabled;
+}
+
+float64 ExdEmphasized(float64 dt) {
+	if (dt <= 0.) {
+		return 0.;
+	} else if (dt >= 1.) {
+		return 1.;
+	}
+	return CubicBezier(0.2, 0., 0., 1., dt);
+}
+
+float64 ExdSpring(float64 dt) {
+	if (dt <= 0.) {
+		return 0.;
+	} else if (dt >= 1.) {
+		return 1.;
+	}
+	const auto zeta = 0.72;
+	const auto omega = 8.6;
+	const auto damped = omega * std::sqrt(1. - zeta * zeta);
+	const auto decay = std::exp(-zeta * omega * dt);
+	const auto value = 1. - decay * (std::cos(damped * dt)
+		+ (zeta * omega / damped) * std::sin(damped * dt));
+	const auto tail = std::exp(-zeta * omega);
+	return value + (1. - value) * tail * dt;
+}
+
+transition exdEmphasized = [](const float64 &delta, const float64 &dt) {
+	return delta * ExdEmphasized(dt);
+};
+
+transition exdSpring = [](const float64 &delta, const float64 &dt) {
+	return delta * ExdSpring(dt);
+};
+
 transition easeOutQuint = [](const float64 &delta, const float64 &dt) {
 	Expects(!std::isnan(delta));
 	Expects(!std::isnan(dt));

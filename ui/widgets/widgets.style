@@ -85,6 +85,9 @@ FlatButton {
 	overFont: font;
 
 	ripple: RippleAnimation;
+
+	exdRadius: pixels;
+	exdMargins: margins;
 }
 
 RoundButton {
@@ -1726,3 +1729,5 @@ menuItemBgMargins: margins(0px, 0px, 0px, 0px);
 sideBarActivePill: size(0px, 0px);
 sideBarActivePillBg: sideBarBgActive;
 searchFieldRowRadius: 0px;
+
+exdSettingsHoverDuration: 140;

@@ -177,7 +177,7 @@ void LayerStackWidget::BackgroundWidget::setMainMenuShown(bool shown) {
 			_mainMenuShown ? 0. : 1.,
 			_mainMenuShown ? 1. : 0.,
 			_duration,
-			anim::easeOutCirc);
+			anim::Expressive() ? anim::exdEmphasized : anim::easeOutCirc);
 	}
 	_mainMenuCacheWidth = (_mainMenuCache.width() / style::DevicePixelRatio())
 		- st::boxRoundShadow.extend.right();
@@ -314,11 +314,27 @@ void LayerStackWidget::BackgroundWidget::paintEvent(QPaintEvent *e) {
 		p.fillRect(bg, st::layerBg);
 	}
 
+	const auto exdScaled = [&](float64 progress, auto &&draw) {
+		if (!anim::Expressive() || progress >= 1.) {
+			draw();
+			return;
+		}
+		const auto shift = (1. - anim::ExdEmphasized(progress))
+			* style::ConvertScale(16);
+		p.save();
+		p.translate(0., std::round(shift));
+		draw();
+		p.restore();
+	};
 	if (!_specialLayerCache.isNull() && specialLayerOpacity > 0) {
-		p.setOpacity(specialLayerOpacity);
+		p.setOpacity(anim::Expressive()
+			? anim::ExdEmphasized(specialLayerOpacity)
+			: specialLayerOpacity);
 		auto cacheLeft = specialLayerBox.x() - st::boxRoundShadow.extend.left();
 		auto cacheTop = specialLayerBox.y() - (specialLayerBox.y() > 0 ? st::boxRoundShadow.extend.top() : 0);
-		p.drawPixmapLeft(cacheLeft, cacheTop, width(), _specialLayerCache);
+		exdScaled(specialLayerOpacity, [&] {
+			p.drawPixmapLeft(cacheLeft, cacheTop, width(), _specialLayerCache);
+		});
 	}
 	if (!layerBox.isEmpty()) {
 		if (!_specialLayerCache.isNull()) {
@@ -331,8 +347,12 @@ void LayerStackWidget::BackgroundWidget::paintEvent(QPaintEvent *e) {
 		}
 	}
 	if (!_layerCache.isNull() && layerOpacity > 0) {
-		p.setOpacity(layerOpacity);
-		p.drawPixmapLeft(layerBox.topLeft() - QPoint(st::boxRoundShadow.extend.left(), st::boxRoundShadow.extend.top()), width(), _layerCache);
+		p.setOpacity(anim::Expressive()
+			? anim::ExdEmphasized(layerOpacity)
+			: layerOpacity);
+		exdScaled(layerOpacity, [&] {
+			p.drawPixmapLeft(layerBox.topLeft() - QPoint(st::boxRoundShadow.extend.left(), st::boxRoundShadow.extend.top()), width(), _layerCache);
+		});
 	}
 	if (!_mainMenuCache.isNull() && mainMenuRight > 0) {
 		p.setOpacity(1.);

@@ -73,8 +73,13 @@ void SlideAnimation::paintFrame(QPainter &p, int x, int y, int outerWidth) {
 
 SlideAnimation::State SlideAnimation::state() const {
 	const auto dt = _animation.value(1.);
-	const auto easeOut = anim::easeOutCirc(1., dt);
-	const auto easeIn = anim::easeInCirc(1., dt);
+	const auto expressive = anim::Expressive();
+	const auto easeOut = expressive
+		? anim::ExdEmphasized(dt)
+		: anim::easeOutCirc(1., dt);
+	const auto easeIn = expressive
+		? (1. - anim::ExdEmphasized(1. - dt))
+		: anim::easeInCirc(1., dt);
 	const auto arrivingAlpha = easeIn;
 	const auto departingAlpha = 1. - easeOut;
 

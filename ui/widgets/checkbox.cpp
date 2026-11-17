@@ -755,6 +755,10 @@ void Checkbox::finishAnimating() {
 }
 
 void Checkbox::updateNaturalWidth() {
+	if (property("md3GroupedFill").toBool()) {
+		setNaturalWidth(-1);
+		return;
+	}
 	setNaturalWidth([&] {
 		if (_st.width > 0) {
 			return _st.width;

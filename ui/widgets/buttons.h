@@ -127,7 +127,13 @@ protected:
 
 	void onStateChanged(State was, StateChangeSource source) override;
 
+	QImage prepareRippleMask() const override;
+	QPoint prepareRippleStartPosition() const override;
+
 private:
+	[[nodiscard]] bool exdPill() const;
+	[[nodiscard]] QRect exdPillRect() const;
+
 	QString _text;
 	QMargins _textMargins;
 	int _width = 0;
@@ -304,7 +310,7 @@ QPainterPath PaintGroupedRow(
 	QPainter &p,
 	not_null<QWidget*> self,
 	QColor base,
-	bool over);
+	float64 over);
 
 void SetupGroupedRowBackground(not_null<RpWidget*> row);
 void SetupGroupedRowBackground(
@@ -375,6 +381,7 @@ private:
 	[[nodiscard]] int textAvailableWidth(int outerw) const;
 
 	const style::SettingsButton &_st;
+	Ui::Animations::Simple _exdOverAnimation;
 	style::margins _padding;
 	Ui::Text::String _text;
 	TextWithEntities _textSource;
