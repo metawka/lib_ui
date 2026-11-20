@@ -61,6 +61,7 @@ void StopShortAnimation() {
 bool Md3Enabled_ = false;
 int Md3Groups_ = 0;
 bool Md3Fill_ = false;
+bool Md3Icons_ = true;
 bool Md3Grouped_ = false;
 bool Md3Floating_ = false;
 
@@ -72,12 +73,20 @@ bool Md3Fill() {
 	return Md3Fill_;
 }
 
+bool Md3Icons() {
+	return Md3Icons_;
+}
+
 } // namespace internal
 
 void SetMd3(bool enabled, int groups, bool fill) {
 	internal::Md3Enabled_ = enabled;
 	internal::Md3Groups_ = groups;
 	internal::Md3Fill_ = fill;
+}
+
+void SetMd3Icons(bool md3) {
+	internal::Md3Icons_ = md3;
 }
 
 void SetMd3Grouped(bool grouped) {

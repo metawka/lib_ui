@@ -128,6 +128,9 @@ private:
 	rpl::event_stream<ShadowVisibility> _shadowVisibilityChanged;
 };
 
+void SetSmoothScroll(bool enabled);
+[[nodiscard]] bool SmoothScroll();
+
 class ScrollArea : public RpWidgetBase<QScrollArea> {
 public:
 	using Parent = RpWidgetBase<QScrollArea>;
@@ -268,6 +271,9 @@ private:
 	Fn<bool(QPoint, Qt::ScrollPhase)> _crossAxisWheelProcess;
 	ScrollDirectionLock _wheelDirectionLock;
 	bool _wheelDirectionLocked = false;
+	Ui::Animations::Simple _smoothScroll;
+	int _smoothTotal = 0;
+	int _smoothApplied = 0;
 	bool _widgetAcceptsTouch = false;
 
 	object_ptr<QWidget> _widget = { nullptr };

@@ -35,11 +35,13 @@ void StopShortAnimation();
 
 [[nodiscard]] bool Md3(int mask);
 [[nodiscard]] bool Md3Fill();
+[[nodiscard]] bool Md3Icons();
 
 } // namespace internal
 
 void SetMd3(bool enabled, int groups, bool fill);
 [[nodiscard]] bool Md3Enabled();
+void SetMd3Icons(bool md3);
 void SetMd3Grouped(bool grouped);
 [[nodiscard]] bool Md3Grouped();
 void SetMd3Floating(bool floating);

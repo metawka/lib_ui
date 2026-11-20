@@ -388,6 +388,9 @@ private:
 	Fn<bool()> _bottomContentRequest;
 	std::optional<QColor> _overscrollBg;
 	Ui::Animations::Simple _overscrollReturnAnimation;
+	Animations::Simple _smoothWheel;
+	int _smoothTotal = 0;
+	int _smoothApplied = 0;
 	rpl::variable<Position> _position;
 	rpl::variable<Movement> _movement;
 

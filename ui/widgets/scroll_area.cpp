@@ -616,12 +616,54 @@ bool ScrollArea::eventFilter(QObject *obj, QEvent *e) {
 	return (obj == widget() && filterOutTouchEvent(e)) || result;
 }
 
+namespace {
+
+bool SmoothScrollEnabled = false;
+
+} // namespace
+
+void SetSmoothScroll(bool enabled) {
+	SmoothScrollEnabled = enabled;
+}
+
+bool SmoothScroll() {
+	return SmoothScrollEnabled;
+}
+
 bool ScrollArea::viewportEvent(QEvent *e) {
 	if (filterOutTouchEvent(e)) {
 		return true;
 	} else if (e->type() == QEvent::Wheel) {
 		const auto ev = static_cast<QWheelEvent*>(e);
 		if (_customWheelProcess && _customWheelProcess(ev)) {
+			return true;
+		}
+		const auto angle = ev->angleDelta();
+		if (SmoothScrollEnabled
+			&& ev->phase() == Qt::NoScrollPhase
+			&& ev->pixelDelta().isNull()
+			&& angle.y() != 0
+			&& angle.x() == 0
+			&& !(ev->modifiers() & (Qt::ShiftModifier | Qt::ControlModifier))
+			&& scrollTopMax() > 0) {
+			const auto bar = verticalScrollBar();
+			const auto lines = QApplication::wheelScrollLines();
+			const auto step = -angle.y() * lines * bar->singleStep() / 120;
+			const auto left = _smoothScroll.animating()
+				? (_smoothTotal - _smoothApplied)
+				: 0;
+			_smoothTotal = left + step;
+			_smoothApplied = 0;
+			_smoothScroll.stop();
+			_smoothScroll.start([=] {
+				const auto wanted = int(base::SafeRound(
+					_smoothTotal * _smoothScroll.value(1.)));
+				const auto delta = wanted - _smoothApplied;
+				if (delta) {
+					_smoothApplied = wanted;
+					scrollToY(scrollTop() + delta);
+				}
+			}, 0., 1., 220, anim::easeOutCubic);
 			return true;
 		}
 		if (_wheelDirectionLocked || _crossAxisWheelProcess) {

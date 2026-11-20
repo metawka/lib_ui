@@ -922,7 +922,29 @@ bool ElasticScroll::handleWheelEvent(
 			if (!weak) {
 				return true;
 			}
-			tryScrollTo(_state.visibleFrom + delta);
+			if (SmoothScroll()
+				&& source == WheelSource::Wheel
+				&& !multiply
+				&& e->pixelDelta().isNull()
+				&& delta != 0) {
+				const auto left = _smoothWheel.animating()
+					? (_smoothTotal - _smoothApplied)
+					: 0;
+				_smoothTotal = left + delta;
+				_smoothApplied = 0;
+				_smoothWheel.stop();
+				_smoothWheel.start([=] {
+					const auto wanted = int(base::SafeRound(
+						_smoothTotal * _smoothWheel.value(1.)));
+					const auto step = wanted - _smoothApplied;
+					if (step) {
+						_smoothApplied = wanted;
+						tryScrollTo(_state.visibleFrom + step);
+					}
+				}, 0., 1., 220, anim::easeOutCubic);
+			} else {
+				tryScrollTo(_state.visibleFrom + delta);
+			}
 			_movement = Movement::None;
 		} else if (!_overscrollReturnAnimation.animating()) {
 			overscrollReturn();
