@@ -930,7 +930,8 @@ bool ElasticScroll::handleWheelEvent(
 				const auto left = _smoothWheel.animating()
 					? (_smoothTotal - _smoothApplied)
 					: 0;
-				_smoothTotal = left + delta;
+				_smoothTotal = left + int(base::SafeRound(
+					delta * SmoothScrollSpeed()));
 				_smoothApplied = 0;
 				_smoothWheel.stop();
 				_smoothWheel.start([=] {

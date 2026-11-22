@@ -222,8 +222,10 @@ void PanelAnimation::setFinalImage(
 		if (!corner.valid()) return;
 		if ((_startWidth >= 0 && _startWidth < _finalWidth)
 			|| (_startHeight >= 0 && _startHeight < _finalHeight)) {
-			Assert(corner.width <= inner.width());
-			Assert(corner.height <= inner.height());
+			if (corner.width > inner.width()
+				|| corner.height > inner.height()) {
+				corner = Corner();
+			}
 		}
 	};
 	checkCorner(_topLeft);
@@ -309,17 +311,30 @@ void PanelAnimation::setAlphaDuration() {
 void PanelAnimation::start() {
 	Assert(!_finalImage.isNull());
 	RoundShadowAnimation::start(_finalWidth, _finalHeight, _finalImage.devicePixelRatio());
-	auto checkCorner = [this](const Corner &corner) {
-		if (!corner.valid()) return;
-		if (_startWidth >= 0) Assert(corner.width <= _startWidth);
-		if (_startHeight >= 0) Assert(corner.height <= _startHeight);
-		Assert(corner.width <= _finalInnerWidth);
-		Assert(corner.height <= _finalInnerHeight);
-	};
-	checkCorner(_topLeft);
-	checkCorner(_topRight);
-	checkCorner(_bottomLeft);
-	checkCorner(_bottomRight);
+	auto cornerWidth = 0;
+	auto cornerHeight = 0;
+	for (const auto corner : { &_topLeft, &_topRight, &_bottomLeft, &_bottomRight }) {
+		if (corner->valid()) {
+			cornerWidth = std::max(cornerWidth, corner->width);
+			cornerHeight = std::max(cornerHeight, corner->height);
+		}
+	}
+	if (cornerWidth > _finalInnerWidth || cornerHeight > _finalInnerHeight) {
+		_topLeft = _topRight = _bottomLeft = _bottomRight = Corner();
+	} else {
+		if (_startWidth >= 0) {
+			_startWidth = std::clamp(
+				std::max(_startWidth, cornerWidth),
+				0,
+				_finalInnerWidth);
+		}
+		if (_startHeight >= 0) {
+			_startHeight = std::clamp(
+				std::max(_startHeight, cornerHeight),
+				0,
+				_finalInnerHeight);
+		}
+	}
 }
 
 auto PanelAnimation::computeState(float64 dt, float64 opacity) const

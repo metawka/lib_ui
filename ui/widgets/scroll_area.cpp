@@ -619,6 +619,7 @@ bool ScrollArea::eventFilter(QObject *obj, QEvent *e) {
 namespace {
 
 bool SmoothScrollEnabled = false;
+float64 SmoothScrollSpeedValue = 1.;
 
 } // namespace
 
@@ -628,6 +629,14 @@ void SetSmoothScroll(bool enabled) {
 
 bool SmoothScroll() {
 	return SmoothScrollEnabled;
+}
+
+void SetSmoothScrollSpeed(float64 speed) {
+	SmoothScrollSpeedValue = std::clamp(speed, 0.25, 4.);
+}
+
+float64 SmoothScrollSpeed() {
+	return SmoothScrollSpeedValue;
 }
 
 bool ScrollArea::viewportEvent(QEvent *e) {
@@ -648,7 +657,9 @@ bool ScrollArea::viewportEvent(QEvent *e) {
 			&& scrollTopMax() > 0) {
 			const auto bar = verticalScrollBar();
 			const auto lines = QApplication::wheelScrollLines();
-			const auto step = -angle.y() * lines * bar->singleStep() / 120;
+			const auto step = int(base::SafeRound(
+				-angle.y() * lines * bar->singleStep() / 120.
+					* SmoothScrollSpeedValue));
 			const auto left = _smoothScroll.animating()
 				? (_smoothTotal - _smoothApplied)
 				: 0;

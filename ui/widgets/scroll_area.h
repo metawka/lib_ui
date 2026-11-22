@@ -130,6 +130,8 @@ private:
 
 void SetSmoothScroll(bool enabled);
 [[nodiscard]] bool SmoothScroll();
+void SetSmoothScrollSpeed(float64 speed);
+[[nodiscard]] float64 SmoothScrollSpeed();
 
 class ScrollArea : public RpWidgetBase<QScrollArea> {
 public:
