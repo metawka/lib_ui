@@ -106,6 +106,21 @@ public:
 	void setMaxHeight(int maxHeight) {
 		_maxHeight = maxHeight;
 	}
+	void exdResize(int width, int maxHeight) {
+		_width = width;
+		_maxHeight = maxHeight;
+		setDimensions(
+			width,
+			std::clamp(_desiredHeight, _minHeight, std::max(_minHeight, maxHeight)),
+			true);
+		if (const auto layer = parentWidget()) {
+			if (const auto outer = layer->parentWidget()) {
+				layer->move(
+					(outer->width() - layer->width()) / 2,
+					layer->y());
+			}
+		}
+	}
 	void setMinHeight(int minHeight) {
 		_minHeight = minHeight;
 	}

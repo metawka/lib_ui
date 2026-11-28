@@ -100,6 +100,7 @@ void Action::paintBackground(QPainter &p, bool selected) {
 	if (const auto radius = st::menuItemBgRadius; radius > 0) {
 		p.fillRect(0, 0, width(), _height, _st.itemBg);
 		if (selected) {
+			p.save();
 			auto hq = PainterHighQualityEnabler(p);
 			p.setPen(Qt::NoPen);
 			p.setBrush(_st.itemBgOver);
@@ -108,6 +109,7 @@ void Action::paintBackground(QPainter &p, bool selected) {
 					st::menuItemBgMargins),
 				radius,
 				radius);
+			p.restore();
 		}
 		return;
 	}
